@@ -1,0 +1,40 @@
+---
+alwaysApply: true
+---
+---
+description: Context and constraints for MATS Mechanistic Interpretability project
+globs: *.py, *.ipynb
+---
+
+# MATS Mechanistic Interpretability Project
+
+**Goal:** Produce original, compelling mech-interp research. Current directions include sycophancy steering, unfaithful CoT classification, and synthetic knowledge insertion—but follow interesting findings wherever they lead.
+
+## Hardware
+
+- **GPU:** NVIDIA RTX 6000 Ada (48GB VRAM)
+- **Implication:** No need for quantization. Load models in `bfloat16` or `float16`. Quantization hinders interpretability analysis.
+
+## Tech Stack
+
+- **Core:** `TransformerLens` for interpretability work
+- **Models:** Primarily `meta-llama/Meta-Llama-3-8B-Instruct`, but may use smaller models (e.g., Qwen-2.5-1.5B) for faster iteration
+- **Framework:** PyTorch
+- **Other libraries as needed:** `peft`/`trl` for fine-tuning comparisons, standard HuggingFace when TransformerLens isn't suitable
+
+## TransformerLens Conventions
+
+When using TransformerLens:
+
+- Use `model.run_with_hooks()` or `model.run_with_cache()` for interventions
+- Call `model.reset_hooks()` before experiments to clear stale hooks
+- Use standard naming: `resid_pre`, `resid_post`, `W_U`, `W_E`
+
+## Priorities
+
+1. **Speed of iteration** — Get results fast, clean up later if needed
+2. **Sound experiments** — Controls, baselines, sanity checks matter more than clean code
+3. **Flexibility** — Don't over-engineer; the direction may change based on findings
+
+## Folder Conventions
+-For now write all your code within 001_syncophancy exploration, but this may change as we proceed. 

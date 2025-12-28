@@ -1,0 +1,105 @@
+---
+alwaysApply: false
+---
+---
+description: Steering vector implementation details and patterns
+globs: experiments/exp_003_steering_playground/*.py
+---
+
+# Steering Vector Playground
+
+## Overview
+
+Implementation based on the paper "Understanding Reasoning in Thinking Language Models via Steering Vectors" ([arXiv:2506.18167](https://arxiv.org/abs/2506.18167)) by Venhoff, Arcuschin, Torr, Conmy, and Nanda. Accepted to the Workshop on Reasoning and Planning for LLMs at ICLR 2025.
+
+Note: Same authors also wrote "Base Models Know How to Reason, Thinking Models Learn When" ([arXiv:2510.07364](https://arxiv.org/abs/2510.07364)) - that paper focuses on taxonomy/SAE analysis, while this one focuses on steering vectors.
+
+Uses **mean-difference steering vectors** to control reasoning behaviors in thinking LLMs (DeepSeek-R1-Distill models).
+
+## Third-Party Resources
+
+- **Repo:** `third_party/steering-thinking-llms/` (cloned from cvenhoff/steering-thinking-llms)
+- **Pre-trained vectors:** `third_party/steering-thinking-llms/train-steering-vectors/results/vars/mean_vectors_*.pt`
+- **Original Colab:** https://colab.research.google.com/drive/1CXadiO7XZP216QvIyUUfhnJzKgz-EMew
+
+## nnsight Version Compatibility
+
+**IMPORTANT:** The original Colab uses nnsight 0.4.5, but we have nnsight 0.5.13. The APIs differ significantly:
+
+| Feature | nnsight 0.4.x | nnsight 0.5.x |
+|---------|---------------|---------------|
+| Generation with intervention | `model.generate(...) as tracer` context | Use PyTorch hooks on `model._model` |
+| Layer access | `model_layers.all()` | Not supported; use hooks |
+| Forward pass | `model.trace()` works | `model.trace()` works |
+
+### Working Pattern for Generation with Steering (nnsight 0.5.x)
+
+```python
+# Use PyTorch hooks on the underlying HF model
+hf_model = model._model  # Get underlying HuggingFace model
+
+def make_steering_hook(steering_vector, coefficient=1.0):
+    def hook(module, input, output):
+        if isinstance(output, tuple):
+            hidden_states = output[0]
+            modified = hidden_states + coefficient * steering_vector.unsqueeze(0).unsqueeze(0)
+            return (modified,) + output[1:]
+        return output + coefficient * steering_vector.unsqueeze(0).unsqueeze(0)
+    return hook
+
+# Register hook, generate, remove hook
+hook_handle = hf_model.model.layers[layer_idx].register_forward_hook(make_steering_hook(vector, coef))
+try:
+    output_ids = hf_model.generate(input_ids, max_new_tokens=50)
+finally:
+    hook_handle.remove()
+```
+
+## Steering Categories
+
+Pre-trained vectors available for DeepSeek-R1-Distill-Qwen-1.5B:
+
+| Category | Optimal Layer | Effect |
+|----------|---------------|--------|
+| backtracking | 17 | Reconsider/revise approach ("Wait, that's not right...") |
+| uncertainty-estimation | 18 | Express uncertainty about conclusions |
+| example-testing | 15 | Test reasoning with concrete examples |
+| adding-knowledge | 18 | Incorporate additional knowledge |
+| initializing | 14 | Problem setup and initialization |
+| deduction | 16 | Logical deduction steps |
+| summarizing | 18 | Summarize findings |
+
+## Vector Computation
+
+Steering vectors are computed as:
+```python
+feature_vector = mean_activations[label] - mean_activations["overall"]
+# Then normalized by overall mean norm:
+feature_vector *= (overall_norm / feature_vector.norm())
+```
+
+## Usage
+
+```python
+# Positive steering (encourage behavior):
+coefficient = 0.5  # typical range: 0.3-1.0
+# Add vector to layer output
+
+# Negative steering (discourage behavior):
+coefficient = -0.5  # negate to suppress
+```
+
+## Models with Pre-trained Vectors
+
+Available in `third_party/steering-thinking-llms/train-steering-vectors/results/vars/`:
+- `mean_vectors_deepseek-r1-distill-qwen-1.5b.pt` ← Currently used
+- `mean_vectors_deepseek-r1-distill-llama-8b.pt`
+- `mean_vectors_deepseek-r1-distill-qwen-14b.pt`
+
+## Extension to Other Models
+
+To extend to DeepSeek-R1-Distill-Qwen-7B:
+1. Both 1.5B and 7B have 28 layers (same depth)
+2. Hidden dim: 1.5B=1536, 7B=3584
+3. Layer indices should scale proportionally or be re-optimized
+4. Would need to train new mean vectors using scripts in `train-steering-vectors/`

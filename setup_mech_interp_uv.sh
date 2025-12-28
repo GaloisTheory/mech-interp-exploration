@@ -6,9 +6,14 @@ set -euo pipefail
 # ---------------------------------------------------------
 export XDG_CACHE_HOME="/workspace/.cache"
 export UV_CACHE_DIR="/workspace/.cache/uv"
-mkdir -p "$XDG_CACHE_HOME" "$UV_CACHE_DIR"
+export HF_HOME="/workspace/.cache/huggingface"
+export HF_HUB_CACHE="/workspace/.cache/huggingface/hub"
+mkdir -p "$XDG_CACHE_HOME" "$UV_CACHE_DIR" "$HF_HOME"
 
-echo "🚀 Starting Master Setup (uv-based) for RTX 6000..."
+echo "🚀 Starting Master Setup (uv-based)..."
+
+# Vendored repo path (used later)
+VENDORED_REPO="/workspace/third_party/thinking-llms-interp"
 
 # ---------------------------------------------------------
 # 1. SYSTEM DEPS (Node.js + basics)
@@ -21,8 +26,10 @@ apt-get install -y --no-install-recommends \
   build-essential
 
 # Node.js 20.x (needed for CircuitsVis/PySvelte workflows)
-curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-apt-get install -y --no-install-recommends nodejs
+if ! command -v node &>/dev/null || [[ "$(node -v)" != v20* ]]; then
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+    apt-get install -y --no-install-recommends nodejs
+fi
 
 # ---------------------------------------------------------
 # 2. INSTALL uv
@@ -43,27 +50,33 @@ PYTHON_BIN="$(command -v python3)"
 echo "Using python: $PYTHON_BIN"
 echo "Using uv cache: $UV_CACHE_DIR"
 
-# Install core stack via uv into *system* site-packages
-# --system: target the interpreter's system site-packages (no venv)
-# --python: explicitly choose the interpreter
-echo "🐍 Installing Python packages with uv..."
-uv pip install --system --python "$PYTHON_BIN" -U \
-  transformer-lens \
-  nnsight \
-  circuitsvis \
-  plotly \
-  fancy_einsum \
-  pandas \
-  tqdm \
-  accelerate \
-  hf_transfer \
-  ipykernel \
-  jupyterlab
-
-# Note: Let transformers version float (nnsight needs >=4.47 for CompileConfig)
+# Install packages from pyproject.toml
+# --break-system-packages: needed for PEP 668 compliant systems (Ubuntu 24.04+)
+echo "🐍 Installing Python packages from pyproject.toml..."
+cd /workspace
+uv pip install --system --break-system-packages --python "$PYTHON_BIN" -r pyproject.toml
 
 # ---------------------------------------------------------
-# 4. REGISTER A JUPYTER KERNEL FOR THIS PYTHON (NO VENV)
+# 4. VENDORED REPO SETUP (thinking-llms-interp)
+# ---------------------------------------------------------
+if [[ -d "$VENDORED_REPO" ]]; then
+    echo "📦 Setting up vendored repo: thinking-llms-interp..."
+    
+    # Install as editable (no deps - we already installed them above)
+    # This adds the repo to sys.path so imports work
+    cd "$VENDORED_REPO"
+    uv pip install --system --break-system-packages --python "$PYTHON_BIN" --no-deps -e .
+    
+    echo "✅ thinking-llms-interp installed as editable package"
+else
+    echo "⚠️  Vendored repo not found at $VENDORED_REPO"
+    echo "   Clone it with: git clone <repo-url> $VENDORED_REPO"
+fi
+
+cd /workspace
+
+# ---------------------------------------------------------
+# 5. REGISTER A JUPYTER KERNEL FOR THIS PYTHON (NO VENV)
 # ---------------------------------------------------------
 echo "🧠 Registering Jupyter kernel for this Python..."
 KERNEL_NAME="python3-system"
@@ -76,7 +89,7 @@ echo "   In Jupyter: Kernel -> Change Kernel -> \"$DISPLAY_NAME\""
 echo "--------------------------------------------------"
 
 # ---------------------------------------------------------
-# 5. VERIFICATION
+# 6. VERIFICATION
 # ---------------------------------------------------------
 echo "✅ Setup Complete!"
 echo "--------------------------------------------------"
@@ -104,24 +117,37 @@ print(f"Python for installs/checks: {sys.executable}")
 def check(name, import_name=None):
     import_name = import_name or name
     try:
-        __import__(import_name)
-        print(f"✅ {name} import OK")
+        mod = __import__(import_name)
+        version = getattr(mod, "__version__", "?")
+        print(f"✅ {name} v{version}")
     except Exception as e:
         print(f"❌ {name} import failed: {repr(e)}")
 
+# Core mech interp
 check("transformer_lens", "transformer_lens")
+check("nnsight")
 check("circuitsvis")
+check("sae_lens", "sae_lens")
+
+# ML stack
+check("datasets")
+check("einops")
+
+# thinking-llms-interp deps
+check("anthropic")
+check("nltk")
+check("dotenv", "dotenv")
+
+# Utilities
 check("plotly")
-check("fancy_einsum")
 check("pandas")
-check("tqdm")
 PY
 
 echo "--------------------------------------------------"
 echo "🎉 All done."
 
 # ---------------------------------------------------------
-# 6. SECRETS & AUTHENTICATION
+# 7. SECRETS & AUTHENTICATION
 # ---------------------------------------------------------
 SECRETS_FILE="/workspace/.secrets"
 if [[ -f "$SECRETS_FILE" ]]; then
@@ -161,4 +187,3 @@ if [[ -f "$SECRETS_FILE" ]]; then
 else
     echo "⚠️  No secrets file found at $SECRETS_FILE — skipping auth"
 fi
-

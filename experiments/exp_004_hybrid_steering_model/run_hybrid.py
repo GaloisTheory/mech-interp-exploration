@@ -12,27 +12,23 @@ thinking models just learn WHEN to use them. This hybrid approach recovers
 up to 91% of the thinking model's performance gap.
 
 Setup:
-    1. Select kernel: /workspace/third_party/thinking-llms-interp/.venv/bin/python
-    2. Run cells interactively
+    1. Run setup_mech_interp_uv.sh (installs thinking-llms-interp as editable package)
+    2. Select kernel: python3-system
+    3. Run cells interactively
 """
 import os
 import sys
 
-# Set HF cache before any imports|
+# Set HF cache before any imports
 os.environ["HF_HOME"] = "/workspace/.cache/huggingface"
 os.environ["HF_HUB_CACHE"] = "/workspace/.cache/huggingface/hub"
 
-# Add vendored repo AND its venv's site-packages to path
+# Change to hybrid directory so relative paths work (for SAE/vector files)
 VENDORED_REPO = "/workspace/third_party/thinking-llms-interp"
-VENDORED_VENV_SITE = f"{VENDORED_REPO}/.venv/lib/python3.12/site-packages"
-
-# Add venv site-packages at END so system packages (especially torch) take priority
-# This way system torch 2.8.0+cu128 (with Blackwell support) is used
-sys.path.insert(0, VENDORED_REPO)
-sys.path.append(VENDORED_VENV_SITE)
-
-# Change to hybrid directory so relative paths work
 os.chdir(f"{VENDORED_REPO}/hybrid")
+
+# Add hybrid/ to path for interactive_hybrid_sentence.py
+sys.path.insert(0, f"{VENDORED_REPO}/hybrid")
 
 #%% Configuration - Choose your model pair
 """

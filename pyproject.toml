@@ -1,0 +1,64 @@
+[project]
+name = "mech-interp-workspace"
+version = "0.1.0"
+description = "Mechanistic interpretability research workspace"
+requires-python = ">=3.11,<3.13"
+
+dependencies = [
+    # ============================================================
+    # Core Mech Interp
+    # ============================================================
+    "transformer-lens>=2.16.1",
+    "nnsight>=0.5.1",
+    "circuitsvis",
+    "sae-lens>=6.10.0",
+    
+    # ============================================================
+    # ML Stack (torch comes from base image - don't pin here)
+    # ============================================================
+    "accelerate>=1.10.0",
+    "datasets>=2.2.1",
+    "einops>=0.8.0",
+    "fancy-einsum>=0.0.3",
+    "jaxtyping>=0.3.0",
+    "transformers>=4.47.0",
+    "hf-transfer>=0.1.9",
+    
+    # ============================================================
+    # thinking-llms-interp dependencies
+    # ============================================================
+    "python-dotenv>=1.0.0",
+    "anthropic>=0.64.0",
+    "openai>=1.0.0",
+    "nltk>=3.9.0",
+    "scikit-learn>=1.4.0",
+    "seaborn>=0.13.0",
+    "matplotlib>=3.8.0",
+    "wandb>=0.21.0",
+    "chat-limiter",
+    
+    # ============================================================
+    # Utilities
+    # ============================================================
+    "plotly>=5.24.0",
+    "pandas>=2.0.0",
+    "tqdm",
+    "requests>=2.31.0",
+    "pyyaml>=6.0",
+    
+    # ============================================================
+    # Dev / Notebook
+    # ============================================================
+    "ipykernel",
+    "jupyterlab",
+    "pytest>=8.0.0",
+]
+
+[tool.uv]
+# Don't try to build/install this as a package
+package = false
+
+[tool.uv.sources]
+# Git dependencies for thinking-llms-interp
+chat-limiter = { git = "https://github.com/FlyingPumba/chat-limiter.git" }
+

@@ -16,7 +16,7 @@ echo "🚀 Starting Master Setup (uv-based) for RTX 6000..."
 echo "🔧 Installing system dependencies..."
 apt-get update -qq
 apt-get install -y --no-install-recommends \
-  curl ca-certificates git \
+  curl ca-certificates git gh \
   python3 python3-venv \
   build-essential
 
@@ -120,17 +120,37 @@ PY
 echo "--------------------------------------------------"
 echo "🎉 All done."
 
+# ---------------------------------------------------------
+# 6. SECRETS & AUTHENTICATION
+# ---------------------------------------------------------
 SECRETS_FILE="/workspace/.secrets"
 if [[ -f "$SECRETS_FILE" ]]; then
     echo "🔐 Loading secrets..."
     source "$SECRETS_FILE"
     
-    # GitHub CLI auth
+    # GitHub auth + git credential setup
     if [[ -n "${GITHUB_TOKEN:-}" ]]; then
-        echo "$GITHUB_TOKEN" | gh auth login --with-token 2>/dev/null || true
         git config --global user.name "Dohun Lee"
         git config --global user.email "d.lee2176@gmail.com"
-        echo "✅ GitHub authenticated"
+        
+        # Try gh CLI first (preferred - handles token refresh, org access, etc.)
+        # Falls back to direct credentials if gh fails (e.g., token missing read:org scope)
+        gh_success=false
+        if command -v gh &>/dev/null; then
+            if echo "$GITHUB_TOKEN" | gh auth login --with-token 2>/dev/null; then
+                gh auth setup-git 2>/dev/null
+                gh_success=true
+                echo "✅ GitHub authenticated via gh CLI"
+            fi
+        fi
+        
+        # Fallback: Direct git credential store (works with any token that has repo scope)
+        if [[ "$gh_success" == "false" ]]; then
+            git config --global credential.helper store
+            echo "https://${GITHUB_TOKEN}:x-oauth-basic@github.com" > ~/.git-credentials
+            chmod 600 ~/.git-credentials
+            echo "✅ GitHub authenticated via git credentials"
+        fi
     fi
     
     # HuggingFace auth

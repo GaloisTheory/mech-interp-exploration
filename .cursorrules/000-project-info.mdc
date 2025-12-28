@@ -15,12 +15,35 @@ globs: *.py, *.ipynb
 - **GPU:** NVIDIA RTX 6000 Ada (48GB VRAM)
 - **Implication:** No need for quantization. Load models in `bfloat16` or `float16`. Quantization hinders interpretability analysis.
 
+## Environment Setup
+
+- **Cache Location:** HuggingFace cache is redirected to `/workspace/.cache/huggingface` (root filesystem has limited space)
+- **Always import config first:** Start experiment files with:
+  ```python
+  from experiments.config import *  # Sets HF_HOME before any HF imports
+  ```
+- **Or if running standalone scripts**, ensure this is at the top before any transformers/huggingface imports:
+  ```python
+  import os
+  os.environ["HF_HOME"] = "/workspace/.cache/huggingface"
+  ```
+
 ## Tech Stack
 
-- **Core:** `TransformerLens` for interpretability work
-- **Models:** Primarily `meta-llama/Meta-Llama-3-8B-Instruct`, but may use smaller models (e.g., Qwen-2.5-1.5B) for faster iteration
+This is what I use so far. However, I am also not an expert, so especially when something feels inefficient, I encourage you to use search to check, and suggest improvements!
+
+- **TransformerLens:** For interpretability on supported architectures (rich hook API)
+- **nnsight:** For activation access on HuggingFace models when TransformerLens doesn't support the architecture
 - **Framework:** PyTorch
-- **Other libraries as needed:** `peft`/`trl` for fine-tuning comparisons, standard HuggingFace when TransformerLens isn't suitable
+- **Other libraries as needed:** `peft`/`trl` for fine-tuning comparisons, standard HuggingFace when needed
+
+## Models Under Investigation
+
+- **Primary:** `meta-llama/Meta-Llama-3-8B-Instruct` (or smaller models like Qwen-2.5-1.5B for faster iteration)
+- **Distillation comparison:**
+  - Base: `Qwen/Qwen2.5-Math-7B`
+  - Distilled: `deepseek-ai/DeepSeek-R1-Distill-Qwen-7B`
+  - Note: Both share identical vocab (151,643 tokens), but DeepSeek adds a BOS token by default. Use `add_special_tokens=False` for token-aligned comparisons.
 
 ## TransformerLens Conventions
 
@@ -37,4 +60,7 @@ When using TransformerLens:
 3. **Flexibility** — Don't over-engineer; the direction may change based on findings
 
 ## Folder Conventions
--For now write all your code within 001_syncophancy exploration, but this may change as we proceed. 
+
+- Experiments are in `experiments/exp_NNN_description/`
+- Each experiment folder contains related scripts and notebooks
+- Import shared config via `from experiments.config import *` 

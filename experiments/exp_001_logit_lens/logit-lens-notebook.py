@@ -5,6 +5,45 @@ Interactive example demonstrating logit lens analysis.
 This script loads a model, runs inference, and demonstrates
 the logit lens utility functions.
 """
+# %%
+import sys
+from pathlib import Path
+import os
+
+# Add directory containing config.py to path for notebook compatibility
+# Works in both script and Jupyter notebook contexts
+def find_config_dir():
+    """Find the directory containing config.py"""
+    # Try to get the directory of the current file (works in scripts)
+    if '__file__' in globals():
+        return Path(__file__).parent.resolve()
+    
+    # In Jupyter notebooks, search for config.py
+    # Check current directory first
+    cwd = Path.cwd()
+    if (cwd / 'config.py').exists():
+        return cwd
+    
+    # Check common locations relative to workspace
+    for search_path in [cwd, cwd / 'experiments' / '001_logit_lens']:
+        if search_path.exists() and (search_path / 'config.py').exists():
+            return search_path.resolve()
+    
+    # Fallback: try to find it by walking up from cwd
+    current = cwd
+    for _ in range(5):  # Limit search depth
+        if (current / 'config.py').exists():
+            return current.resolve()
+        if current.parent == current:  # Reached root
+            break
+        current = current.parent
+    
+    # Last resort: return cwd
+    return cwd
+
+config_dir = find_config_dir()
+if str(config_dir) not in sys.path:
+    sys.path.insert(0, str(config_dir))
 
 import torch
 import config  # Must import before transformer_lens to set up cache directory

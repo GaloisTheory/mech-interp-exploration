@@ -17,7 +17,7 @@ echo "🔧 Installing system dependencies..."
 apt-get update -qq
 apt-get install -y --no-install-recommends \
   curl ca-certificates git \
-  python3 python3-venv python3-distutils \
+  python3 python3-venv \
   build-essential
 
 # Node.js 20.x (needed for CircuitsVis/PySvelte workflows)
@@ -44,15 +44,23 @@ echo "Using python: $PYTHON_BIN"
 echo "Using uv cache: $UV_CACHE_DIR"
 
 # Install core stack via uv into *system* site-packages
-# --system: target the interpreter’s system site-packages (no venv)
+# --system: target the interpreter's system site-packages (no venv)
 # --python: explicitly choose the interpreter
 echo "🐍 Installing Python packages with uv..."
 uv pip install --system --python "$PYTHON_BIN" -U \
-  "unsloth[colab-new] @ git+https://github.com/unslothai/unsloth.git" \
-  transformer-lens circuitsvis plotly fancy_einsum pandas tqdm ipykernel jupyterlab
+  transformer-lens \
+  nnsight \
+  circuitsvis \
+  plotly \
+  fancy_einsum \
+  pandas \
+  tqdm \
+  accelerate \
+  hf_transfer \
+  ipykernel \
+  jupyterlab
 
-# Pin transformers (force reinstall like your pip version)
-uv pip install --system --python "$PYTHON_BIN" -U --force-reinstall "transformers==4.38.0"
+# Note: Let transformers version float (nnsight needs >=4.47 for CompileConfig)
 
 # ---------------------------------------------------------
 # 4. REGISTER A JUPYTER KERNEL FOR THIS PYTHON (NO VENV)
@@ -111,4 +119,26 @@ PY
 
 echo "--------------------------------------------------"
 echo "🎉 All done."
+
+SECRETS_FILE="/workspace/.secrets"
+if [[ -f "$SECRETS_FILE" ]]; then
+    echo "🔐 Loading secrets..."
+    source "$SECRETS_FILE"
+    
+    # GitHub CLI auth
+    if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+        echo "$GITHUB_TOKEN" | gh auth login --with-token 2>/dev/null || true
+        git config --global user.name "Dohun Lee"
+        git config --global user.email "d.lee2176@gmail.com"
+        echo "✅ GitHub authenticated"
+    fi
+    
+    # HuggingFace auth
+    if [[ -n "${HF_TOKEN:-}" ]]; then
+        huggingface-cli login --token "$HF_TOKEN" --add-to-git-credential 2>/dev/null || true
+        echo "✅ HuggingFace authenticated"
+    fi
+else
+    echo "⚠️  No secrets file found at $SECRETS_FILE — skipping auth"
+fi
 

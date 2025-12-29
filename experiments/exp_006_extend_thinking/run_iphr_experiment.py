@@ -41,18 +41,18 @@ print("Imports complete ✓")
 EXPERIMENT_NAME = "debug_run"
 
 # Conditions to compare
-CONDITIONS = ["normal", "extended_1x", "extended_2x", "extended_5x"]
+CONDITIONS = ["normal", "extended_1x"]
+#, "extended_2x", "extended_5x"]
 # CONDITIONS = ["normal", "extended_1x", "extended_2x", "extended_5x", "extended_10x"]  # Full (slow)
 
 # Number of samples per question (more = more stable estimates)
-SAMPLES_PER_QUESTION = 3
-
+SAMPLES_PER_QUESTION = 1
 # Test mode: use fewer pairs for quick debugging  
-TEST_MODE = False
+TEST_MODE = True
 
 # Sharding for parallel execution
 # Set to None to run all pairs, or (shard_id, total_shards) e.g. (1, 3)
-SHARD = None  # Options: None, (1, 3), (2, 3), (3, 3)
+SHARD = (2, 3)  # Options: None, (1, 3), (2, 3), (3, 3)
 
 # Verbose: print detailed per-sample output
 VERBOSE = False

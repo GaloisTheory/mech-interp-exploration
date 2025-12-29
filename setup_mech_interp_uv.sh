@@ -56,8 +56,25 @@ echo "🐍 Installing Python packages from pyproject.toml..."
 cd /workspace
 uv pip install --system --break-system-packages --python "$PYTHON_BIN" -r pyproject.toml
 
+# Fix torch/torchvision version mismatch (common in GPU templates)
+echo "🔧 Ensuring torchvision matches torch..."
+TORCH_VERSION=$("$PYTHON_BIN" -c "import torch; print(torch.__version__.split('+')[0])")
+CUDA_TAG=$("$PYTHON_BIN" -c "import torch; v=torch.__version__; print(v.split('+')[1] if '+' in v else 'cpu')")
+if [[ "$CUDA_TAG" != "cpu" ]]; then
+    pip install --upgrade torchvision --index-url "https://download.pytorch.org/whl/${CUDA_TAG}" -q 2>/dev/null || true
+fi
+
 # ---------------------------------------------------------
-# 4. VENDORED REPO SETUP (thinking-llms-interp)
+# 4. INSTALL PYRIGHT (for Cursor command+click navigation)
+# ---------------------------------------------------------
+echo "🔍 Installing Pyright (Python language server for IDE navigation)..."
+"$PYTHON_BIN" -m pip install --break-system-packages pyright >/dev/null 2>&1 || \
+    pip install --break-system-packages pyright >/dev/null 2>&1
+
+echo "✅ Pyright installed"
+
+# ---------------------------------------------------------
+# 5. VENDORED REPO SETUP (thinking-llms-interp)
 # ---------------------------------------------------------
 if [[ -d "$VENDORED_REPO" ]]; then
     echo "📦 Setting up vendored repo: thinking-llms-interp..."
@@ -76,7 +93,7 @@ fi
 cd /workspace
 
 # ---------------------------------------------------------
-# 5. REGISTER A JUPYTER KERNEL FOR THIS PYTHON (NO VENV)
+# 6. REGISTER A JUPYTER KERNEL FOR THIS PYTHON (NO VENV)
 # ---------------------------------------------------------
 echo "🧠 Registering Jupyter kernel for this Python..."
 KERNEL_NAME="python3-system"
@@ -89,7 +106,7 @@ echo "   In Jupyter: Kernel -> Change Kernel -> \"$DISPLAY_NAME\""
 echo "--------------------------------------------------"
 
 # ---------------------------------------------------------
-# 6. VERIFICATION
+# 7. VERIFICATION
 # ---------------------------------------------------------
 echo "✅ Setup Complete!"
 echo "--------------------------------------------------"
@@ -108,6 +125,11 @@ PY
 
 echo "Node.js: $(node -v)"
 echo "uv: $(uv --version)"
+if command -v pyright &>/dev/null; then
+    echo "Pyright: $(pyright --version)"
+else
+    echo "Pyright: not found (may need manual install)"
+fi
 echo "--------------------------------------------------"
 
 "$PYTHON_BIN" - <<'PY'
@@ -147,7 +169,7 @@ echo "--------------------------------------------------"
 echo "🎉 All done."
 
 # ---------------------------------------------------------
-# 7. SECRETS & AUTHENTICATION
+# 8. SECRETS & AUTHENTICATION
 # ---------------------------------------------------------
 SECRETS_FILE="/workspace/.secrets"
 if [[ -f "$SECRETS_FILE" ]]; then

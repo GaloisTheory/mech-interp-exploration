@@ -1,0 +1,39 @@
+{
+  // Python interpreter configuration
+  "python.defaultInterpreterPath": "/usr/bin/python3",
+  "python.analysis.typeCheckingMode": "basic",
+  "python.analysis.autoImportCompletions": true,
+  "python.analysis.diagnosticMode": "workspace",
+  
+  // Use Pyright as the language server (works better than Pylance in Cursor)
+  "python.languageServer": "None",
+  
+  // Enable go to definition with command+click
+  "editor.gotoLocation.multipleDefinitions": "goto",
+  "editor.gotoLocation.multipleReferences": "goto",
+  "editor.gotoLocation.multipleImplementations": "goto",
+  
+  // Additional Python paths for vendored repos
+  "python.analysis.extraPaths": [
+    "/workspace/third_party/thinking-llms-interp",
+    "/workspace/third_party/thinking-llms-interp/hybrid",
+    "/workspace/experiments",
+    "/workspace/shared"
+  ],
+  
+  // Pyright-specific settings
+  "pyright.include": [
+    "**/*.py"
+  ],
+  "pyright.exclude": [
+    "**/__pycache__",
+    "**/node_modules",
+    "**/.cache"
+  ],
+  
+  // File associations
+  "files.associations": {
+    "*.py": "python"
+  }
+}
+

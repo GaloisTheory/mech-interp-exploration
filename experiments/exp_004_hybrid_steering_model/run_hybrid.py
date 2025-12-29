@@ -23,12 +23,13 @@ import sys
 os.environ["HF_HOME"] = "/workspace/.cache/huggingface"
 os.environ["HF_HUB_CACHE"] = "/workspace/.cache/huggingface/hub"
 
-# Change to hybrid directory so relative paths work (for SAE/vector files)
+# Add vendored repo to path (editable install may fail on Python 3.11)
 VENDORED_REPO = "/workspace/third_party/thinking-llms-interp"
-os.chdir(f"{VENDORED_REPO}/hybrid")
-
-# Add hybrid/ to path for interactive_hybrid_sentence.py
+sys.path.insert(0, VENDORED_REPO)
 sys.path.insert(0, f"{VENDORED_REPO}/hybrid")
+
+# Change to hybrid directory so relative paths work (for SAE/vector files)
+os.chdir(f"{VENDORED_REPO}/hybrid")
 
 #%% Configuration - Choose your model pair
 """
@@ -111,6 +112,9 @@ print(f"\nLoading base model: {BASE_MODEL}")
 base_model, base_tok = load_model(model_name=BASE_MODEL)
 
 print("\nBoth models loaded!")
+print(f"\nModel dimensions:")
+print(f"  Thinking model hidden_size: {getattr(thinking_model.config, 'hidden_size', 'unknown')}")
+print(f"  Base model hidden_size: {getattr(base_model.config, 'hidden_size', 'unknown')}")
 
 #%% Load SAE and steering vectors
 print("\n" + "=" * 60)
@@ -140,16 +144,28 @@ all_vectors = _load_all_steering_vectors(
 # Get latent descriptions (category names)
 descriptions = get_latent_descriptions(thinker_id, SAE_LAYER, N_CLUSTERS)
 
-# Map steering vectors to category keys
+# Map steering vectors to category keys and validate dimensions
 steering_vectors = {}
+base_hidden_size = int(getattr(base_model.config, "hidden_size", 0))
+
 for desc in descriptions.values():
     latent_key = desc.get("key", "")
     if latent_key:
         slug = latent_key.lower().replace(" ", "-")
         if slug in all_vectors:
-            steering_vectors[latent_key] = all_vectors[slug]
+            vec = all_vectors[slug]
+            # Validate vector dimension matches base model
+            if base_hidden_size > 0:
+                vec_dim = vec.shape[-1] if hasattr(vec, "shape") else None
+                if vec_dim is not None and vec_dim != base_hidden_size:
+                    print(f"⚠️  WARNING: Vector '{latent_key}' has dimension {vec_dim}, "
+                          f"but base model expects {base_hidden_size}. Skipping.")
+                    continue
+            steering_vectors[latent_key] = vec
 
 print(f"\nLoaded {len(steering_vectors)} category-specific steering vectors")
+if base_hidden_size > 0:
+    print(f"Base model hidden_size: {base_hidden_size}")
 print("\nReasoning categories discovered by SAE:")
 for idx, desc in descriptions.items():
     has_vector = "✓" if desc.get("key", "") in steering_vectors else "✗"

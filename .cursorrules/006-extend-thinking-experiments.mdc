@@ -1,0 +1,294 @@
+---
+alwaysApply: false
+---
+---
+description: How to run IPHR faithfulness experiments with extended thinking
+globs: experiments/exp_006_extend_thinking/*.py
+---
+
+# Running IPHR Experiments
+
+## Quick Start
+
+### Single Run (All Pairs)
+```bash
+cd experiments/exp_006_extend_thinking
+python run_experiment.py --name my_experiment --samples 5
+```
+
+### Parallel Run (8 Shards)
+```bash
+# Terminal 1-8 (run simultaneously):
+python run_experiment.py --name my_experiment --shard 1/8 --samples 5 > outputs/shard1.log 2>&1 &
+python run_experiment.py --name my_experiment --shard 2/8 --samples 5 > outputs/shard2.log 2>&1 &
+python run_experiment.py --name my_experiment --shard 3/8 --samples 5 > outputs/shard3.log 2>&1 &
+python run_experiment.py --name my_experiment --shard 4/8 --samples 5 > outputs/shard4.log 2>&1 &
+python run_experiment.py --name my_experiment --shard 5/8 --samples 5 > outputs/shard5.log 2>&1 &
+python run_experiment.py --name my_experiment --shard 6/8 --samples 5 > outputs/shard6.log 2>&1 &
+python run_experiment.py --name my_experiment --shard 7/8 --samples 5 > outputs/shard7.log 2>&1 &
+python run_experiment.py --name my_experiment --shard 8/8 --samples 5 > outputs/shard8.log 2>&1 &
+
+# Monitor progress:
+tail -f outputs/shard*.log
+
+# When complete, merge:
+python merge_results.py my_experiment
+```
+
+## File Structure
+
+```
+exp_006_extend_thinking/
+├── run_experiment.py        # CLI runner (production)
+├── run_iphr_experiment.py   # Interactive notebook (debugging)
+├── experiment_utils.py       # Shared functions (used by both)
+├── merge_results.py          # Merge shard outputs (CLI)
+├── read_results.py          # Interactive results explorer
+├── config.py                # Model/token config
+├── generation.py            # Generation logic
+├── evaluation.py            # IPHR scoring
+└── outputs/                 # Results directory
+    ├── {name}_config.json           # Experiment config
+    ├── {name}_shard1of8_*.json     # Shard results
+    └── {name}_merged.json          # Combined results
+```
+
+## CLI Options
+
+### `run_experiment.py`
+
+```bash
+python run_experiment.py --help
+
+Required:
+  --name NAME              Experiment name (used for output filenames)
+
+Optional:
+  --shard X/N              Shard spec for parallel runs (e.g. "1/8")
+  --samples N              Samples per question (default: 5)
+  --conditions COND ...    Conditions to test (default: normal extended_1x extended_2x extended_5x)
+  --test                   Quick test mode (3 pairs only)
+  --verbose                Print detailed per-sample output
+  --save-raw               Save full model outputs (large files)
+```
+
+### Examples
+
+```bash
+# Quick test (3 pairs, verbose output)
+python run_experiment.py --name quick_test --test --verbose
+
+# Custom conditions
+python run_experiment.py --name baseline --conditions normal extended_1x
+
+# More samples for better statistics
+python run_experiment.py --name high_samples --samples 10
+
+# Save raw outputs for analysis
+python run_experiment.py --name with_raw --save-raw
+```
+
+## Sharding Strategy
+
+**Why shard?** Parallel execution speeds up experiments significantly.
+
+**How it works:**
+- 16 question pairs split across N shards
+- Each shard runs independently
+- Results saved separately per shard
+- Merge script combines them
+
+**Shard distribution:**
+- 8 shards: 2 pairs each (~3-5 min total)
+- 4 shards: 4 pairs each (~5-8 min total)
+- 2 shards: 8 pairs each (~8-12 min total)
+- No sharding: 16 pairs (~15-20 min total)
+
+**Memory considerations:**
+- Each shard loads its own model instance (~4-5 GB VRAM)
+- 8 shards ≈ 32-40 GB VRAM total
+- With 102 GB GPU: Can run 8 shards comfortably
+
+## Monitoring Progress
+
+### Check Running Processes
+```bash
+ps aux | grep "run_experiment.py" | grep -v grep
+```
+
+### Watch Logs
+```bash
+# All logs:
+tail -f outputs/shard*.log
+
+# Specific shard:
+tail -f outputs/shard1.log
+```
+
+### Check GPU Usage
+```bash
+nvidia-smi
+nvidia-smi --query-compute-apps=pid,process_name,used_memory --format=csv
+```
+
+### Count Completed Shards
+```bash
+ls outputs/{name}_shard*.json | wc -l
+```
+
+## Merging Results
+
+### CLI Merge
+```bash
+python merge_results.py my_experiment
+```
+
+This will:
+1. Find all `my_experiment_shard*.json` files
+2. Merge `by_pair` data
+3. Recompute summary statistics
+4. Save to `my_experiment_merged.json`
+
+### Interactive Merge
+Use `read_results.py` notebook:
+```python
+#%% Find and list shard files
+EXPERIMENT_NAME = "my_experiment"
+
+#%% Merge shard files
+# (runs merge logic interactively)
+
+#%% Save merged results
+# (saves to outputs/{name}_merged.json)
+```
+
+## Exploring Results
+
+### Interactive Explorer (`read_results.py`)
+
+```python
+#%% List available result files
+# Shows last 20 files with timestamps
+
+#%% Load a specific result file
+FILE_INDEX = 0  # or FILE_NAME = "my_exp_merged.json"
+
+#%% View summary statistics
+# Shows IPHR rates, unfaithfulness counts per condition
+
+#%% View deltas between conditions
+# Shows change from normal baseline
+
+#%% Detailed per-pair results
+# Lists all pairs with faithfulness status
+
+#%% Inspect a specific pair
+CONDITION = "extended_1x"
+PAIR_INDEX = 0
+
+#%% Compare two experiments
+EXP1_FILE = "baseline_merged.json"
+EXP2_FILE = "with_steering_merged.json"
+```
+
+## Output Files
+
+### Result JSON Structure
+
+```json
+{
+  "timestamp": "20241229_123456",
+  "config": {
+    "experiment_name": "my_experiment",
+    "model": "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B",
+    "conditions": ["normal", "extended_1x", ...],
+    "samples_per_question": 5,
+    "n_pairs": 16,
+    "shard": [1, 8]  // or null if merged
+  },
+  "summary": {
+    "normal": {
+      "iphr_rate": 0.25,
+      "n_unfaithful": 4,
+      "n_total": 16,
+      "avg_accuracy": 0.75
+    },
+    ...
+  },
+  "deltas": {
+    "delta_extended_1x": 0.05,
+    ...
+  },
+  "by_pair": {
+    "normal": [...],
+    ...
+  }
+}
+```
+
+### Config JSON
+
+Saved separately as `{name}_config.json` for easy reference:
+- Experiment settings
+- Model info
+- Timestamp
+- Shard info
+
+## Interactive Notebook (`run_iphr_experiment.py`)
+
+For debugging and exploration:
+
+```python
+#%% Configuration
+EXPERIMENT_NAME = "debug_run"
+CONDITIONS = ["normal", "extended_1x"]
+SAMPLES_PER_QUESTION = 3
+SHARD = None  # or (1, 3) for sharding
+VERBOSE = True
+
+#%% Load model
+model, tokenizer = load_model()
+
+#%% Load question pairs
+pairs, shard_info = load_pairs(shard=SHARD, test_mode=False)
+
+#%% Run experiment
+results = run_experiment(...)
+
+#%% Display results
+print_results_summary(results, CONDITIONS)
+
+#%% Save results
+save_results(...)
+
+#%% Debug cells below...
+```
+
+## Performance Tips
+
+1. **Use sharding** - 8 shards cuts runtime by ~4x
+2. **Start with test mode** - Verify setup with `--test` first
+3. **Monitor GPU memory** - Don't exceed available VRAM
+4. **Check logs early** - Catch errors before wasting time
+5. **Save config separately** - Makes it easy to reproduce runs
+
+## Troubleshooting
+
+### "No shard files found"
+- Check experiment name matches exactly
+- Verify files exist: `ls outputs/{name}_shard*.json`
+
+### GPU OOM (Out of Memory)
+- Reduce number of shards
+- Use fewer samples per question
+- Check other GPU processes: `nvidia-smi`
+
+### Stuck at 0% progress
+- First run takes time to load model
+- Check logs for errors: `tail outputs/shard*.log`
+- Verify model can load: `python -c "from experiment_utils import load_model; load_model()"`
+
+### Merge fails
+- Ensure all shards completed successfully
+- Check shard files have same conditions
+- Verify JSON files are valid: `python -m json.tool outputs/{name}_shard1of8_*.json`

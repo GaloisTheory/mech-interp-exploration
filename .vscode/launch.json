@@ -1,0 +1,81 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug Experiment (Test Mode)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/experiments/exp_006_extend_thinking/run_experiment.py",
+      "args": [
+        "--name", "debug_test",
+        "--test",
+        "--verbose"
+      ],
+      "cwd": "${workspaceFolder}/experiments/exp_006_extend_thinking",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}:${workspaceFolder}/experiments:${workspaceFolder}/shared:${workspaceFolder}/third_party/thinking-llms-interp",
+        "HF_HOME": "${workspaceFolder}/.cache/huggingface",
+        "HF_HUB_CACHE": "${workspaceFolder}/.cache/huggingface/hub"
+      }
+    },
+    {
+      "name": "Debug Experiment (Single Pair)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/experiments/exp_006_extend_thinking/run_experiment.py",
+      "args": [
+        "--name", "debug_single",
+        "--max-pairs", "1",
+        "--samples", "2",
+        "--conditions", "normal", "extended_1x",
+        "--verbose"
+      ],
+      "cwd": "${workspaceFolder}/experiments/exp_006_extend_thinking",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}:${workspaceFolder}/experiments:${workspaceFolder}/shared:${workspaceFolder}/third_party/thinking-llms-interp",
+        "HF_HOME": "${workspaceFolder}/.cache/huggingface",
+        "HF_HUB_CACHE": "${workspaceFolder}/.cache/huggingface/hub"
+      }
+    },
+    {
+      "name": "Debug Experiment (Custom Args)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/experiments/exp_006_extend_thinking/run_experiment.py",
+      "args": "${input:experimentArgs}",
+      "cwd": "${workspaceFolder}/experiments/exp_006_extend_thinking",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}:${workspaceFolder}/experiments:${workspaceFolder}/shared:${workspaceFolder}/third_party/thinking-llms-interp",
+        "HF_HOME": "${workspaceFolder}/.cache/huggingface",
+        "HF_HUB_CACHE": "${workspaceFolder}/.cache/huggingface/hub"
+      }
+    },
+    {
+      "name": "Debug Current Python File",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${file}",
+      "cwd": "${fileDirname}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}:${workspaceFolder}/experiments:${workspaceFolder}/shared:${workspaceFolder}/third_party/thinking-llms-interp"
+      }
+    }
+  ],
+  "inputs": [
+    {
+      "id": "experimentArgs",
+      "type": "promptString",
+      "description": "Enter experiment arguments (e.g., --name my_exp --test --verbose)",
+      "default": "--name debug_run --test --verbose"
+    }
+  ]
+}
+

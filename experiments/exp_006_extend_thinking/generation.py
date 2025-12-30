@@ -3,7 +3,8 @@
 import gc
 import torch
 import torch.nn.functional as F
-from typing import List, Tuple
+import re
+from typing import List
 from dataclasses import dataclass
 from tqdm import tqdm
 
@@ -28,33 +29,19 @@ class GenerationResult:
 
 
 def sample_token(logits: torch.Tensor, temperature: float, top_p: float) -> int:
-    """Sample next token with temperature and nucleus sampling.
-    
-    Args:
-        logits: Logits for the last position [vocab_size]
-        temperature: Sampling temperature
-        top_p: Nucleus sampling threshold
-        
-    Returns:
-        Sampled token ID
-    """
-    # Apply temperature
+    """Sample next token with temperature and nucleus sampling."""
     logits = logits / temperature
     
-    # Apply top-p filtering
     sorted_logits, sorted_indices = torch.sort(logits, descending=True)
     cumulative_probs = torch.cumsum(F.softmax(sorted_logits, dim=-1), dim=-1)
     
-    # Remove tokens with cumulative probability above threshold
     sorted_indices_to_remove = cumulative_probs > top_p
-    # Shift to keep first token above threshold
-    sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
-    sorted_indices_to_remove[..., 0] = 0
+    sorted_indices_to_remove[1:] = sorted_indices_to_remove[:-1].clone()
+    sorted_indices_to_remove[0] = False
     
     indices_to_remove = sorted_indices[sorted_indices_to_remove]
     logits[indices_to_remove] = float('-inf')
     
-    # Sample
     probs = F.softmax(logits, dim=-1)
     return torch.multinomial(probs, num_samples=1).item()
 
@@ -62,271 +49,38 @@ def sample_token(logits: torch.Tensor, temperature: float, top_p: float) -> int:
 def extract_answer(text: str) -> str:
     """Extract YES or NO from model output.
     
-    Looks for answer after </think> tag if present, otherwise
-    searches the entire text.
-    
-    Args:
-        text: Model output text
-        
-    Returns:
-        "YES", "NO", or "UNCLEAR"
+    Uses word boundary matching to avoid false positives like 
+    'NO' in 'NORTH' or 'YES' in 'YESTERDAY'.
     """
+    
     text_upper = text.upper()
     
-    # Look for answer after </think>
     if "</THINK>" in text_upper:
         after_think = text_upper.split("</THINK>")[-1]
     else:
-        # No </think> found - look in the whole text (might be truncated)
         after_think = text_upper
     
-    # Clean up and search for answer
     after_think = after_think.strip()
     
-    # Check for explicit yes/no patterns
-    has_yes = "YES" in after_think
-    has_no = "NO" in after_think
+    # Use word boundaries to find standalone YES/NO
+    # \b matches word boundaries (start/end of word)
+    yes_matches = list(re.finditer(r'\bYES\b', after_think))
+    no_matches = list(re.finditer(r'\bNO\b', after_think))
+    
+    has_yes = len(yes_matches) > 0
+    has_no = len(no_matches) > 0
     
     if has_yes and not has_no:
         return "YES"
     elif has_no and not has_yes:
         return "NO"
     elif has_yes and has_no:
-        # Both present - check which comes last (usually the final answer)
-        yes_pos = after_think.rfind("YES")
-        no_pos = after_think.rfind("NO")
+        # Find the last occurrence of each
+        yes_pos = yes_matches[-1].start()
+        no_pos = no_matches[-1].start()
         return "YES" if yes_pos > no_pos else "NO"
     else:
         return "UNCLEAR"
-
-
-def generate_response_chunked(
-    model,
-    tokenizer,
-    prompt: str,
-    condition: str,
-    gen_config: GenerationConfig = None,
-    verbose: bool = False
-) -> GenerationResult:
-    """
-    Efficient generation using HuggingFace generate() with KV caching.
-    
-    Uses chunked generation: generate until </think>, intercept if needed,
-    then continue. This is O(n) instead of O(n²) for long sequences.
-    """
-    if gen_config is None:
-        gen_config = GenerationConfig()
-    
-    settings = CONDITION_SETTINGS[condition]
-    max_tokens = settings["max_tokens"]
-    intercept_count = settings["intercept_count"]
-    
-    input_ids = tokenizer.encode(prompt, return_tensors="pt").to(model.device)
-    prompt_length = input_ids.shape[1]
-    
-    think_end_encounters = 0
-    think_end_positions = []
-    total_generated = 0
-    
-    # Get the underlying HuggingFace model
-    hf_model = model._model
-    
-    # Optimize: Use full max_tokens for first call to minimize generate() overhead
-    # Only chunk if we need multiple intercepts (extended_5x, extended_10x)
-    use_chunking = intercept_count > 2  # Only chunk for 5x/10x conditions
-    
-    while total_generated < max_tokens:
-        remaining_tokens = max_tokens - total_generated
-        
-        with torch.no_grad():
-            # For most conditions, use full remaining tokens (single generate call)
-            # Only chunk for very long sequences (5x, 10x)
-            if use_chunking:
-                chunk_size = min(remaining_tokens, 2000)
-            else:
-                chunk_size = remaining_tokens  # Use full remaining tokens
-            
-            outputs = hf_model.generate(
-                input_ids,
-                max_new_tokens=chunk_size,
-                do_sample=True,
-                temperature=gen_config.temperature,
-                top_p=gen_config.top_p,
-                pad_token_id=tokenizer.eos_token_id,
-                eos_token_id=[tokenizer.eos_token_id, THINK_END_ID],  # Stop on </think> too
-                return_dict_in_generate=True,
-                use_cache=True,  # Explicitly enable KV cache
-            )
-        
-        new_ids = outputs.sequences
-        new_tokens = new_ids.shape[1] - input_ids.shape[1]
-        total_generated += new_tokens
-        
-        if verbose and total_generated % 200 < new_tokens:
-            print(f"  [Generated {total_generated} tokens...]")
-        
-        # Check what we stopped on
-        last_token = new_ids[0, -1].item()
-        
-        if last_token == tokenizer.eos_token_id:
-            input_ids = new_ids
-            if verbose:
-                print(f"  [EOS at position {total_generated}]")
-            break
-        
-        if last_token == THINK_END_ID:
-            think_end_positions.append(total_generated)
-            think_end_encounters += 1
-            
-            if think_end_encounters <= intercept_count:
-                # Intercept: remove </think> and inject continuation
-                if verbose:
-                    print(f"  [INTERCEPT #{think_end_encounters} at position {total_generated}]")
-                
-                # Remove the </think> token and add continuation
-                continuation_ids = tokenizer.encode(
-                    CONTINUATION_TEXT, 
-                    add_special_tokens=False,
-                    return_tensors="pt"
-                ).to(model.device)
-                
-                input_ids = torch.cat([new_ids[:, :-1], continuation_ids], dim=1)
-                total_generated += continuation_ids.shape[1] - 1  # -1 for removed </think>
-            else:
-                # Let </think> through - it's already in new_ids
-                # Continue generating the answer in the same loop iteration
-                input_ids = new_ids
-                if verbose:
-                    print(f"  [Final </think> at position {total_generated}, continuing...]")
-                # Continue loop to generate answer (will hit EOS or max_tokens)
-                continue
-        else:
-            # Normal chunk end (hit max_new_tokens)
-            input_ids = new_ids
-        
-        # Cleanup between chunks (but don't clear cache unnecessarily)
-        del outputs
-        # Only clear cache periodically to avoid memory fragmentation
-        if total_generated % 1000 == 0:
-            clear_gpu_memory()
-    
-    # Decode
-    full_output = tokenizer.decode(input_ids[0, prompt_length:], skip_special_tokens=False)
-    answer = extract_answer(full_output)
-    
-    # Cleanup
-    del input_ids
-    clear_gpu_memory()
-    
-    return GenerationResult(
-        full_output=full_output,
-        answer=answer,
-        token_count=total_generated,
-        think_end_positions=think_end_positions,
-        condition=condition,
-    )
-
-
-def generate_response_nnsight(
-    model,
-    tokenizer,
-    prompt: str,
-    condition: str,
-    gen_config: GenerationConfig = None,
-    verbose: bool = False
-) -> GenerationResult:
-    """
-    Token-by-token generation using nnsight (for debugging/activation analysis).
-    
-    WARNING: This is O(n²) and very memory-intensive for long sequences.
-    Use generate_response_chunked() for production runs.
-    """
-    if gen_config is None:
-        gen_config = GenerationConfig()
-    
-    settings = CONDITION_SETTINGS[condition]
-    max_tokens = settings["max_tokens"]
-    intercept_count = settings["intercept_count"]
-    
-    input_ids = tokenizer.encode(prompt, return_tensors="pt").to(model.device)
-    prompt_length = input_ids.shape[1]
-    
-    think_end_encounters = 0
-    think_end_positions = []
-    generated_tokens = 0
-    
-    while generated_tokens < max_tokens:
-        # Forward pass
-        with torch.no_grad():
-            with model.trace(input_ids):
-                logits_proxy = model.lm_head.output.save()
-            
-            # Get logits for last position and immediately convert to CPU for sampling
-            last_logits = logits_proxy[0, -1].float().cpu()
-            
-            # Explicitly delete the proxy to free GPU memory
-            del logits_proxy
-        
-        # Sample next token (on CPU to avoid GPU memory)
-        next_token_id = sample_token(last_logits, gen_config.temperature, gen_config.top_p)
-        del last_logits
-        
-        # EOS check
-        if next_token_id == tokenizer.eos_token_id:
-            if verbose:
-                print(f"  [EOS at position {generated_tokens}]")
-            break
-        
-        # </think> handling
-        if next_token_id == THINK_END_ID:
-            think_end_positions.append(generated_tokens)
-            think_end_encounters += 1
-            
-            if think_end_encounters <= intercept_count:
-                # Intercept: inject continuation instead of </think>
-                if verbose:
-                    print(f"  [INTERCEPT #{think_end_encounters} at position {generated_tokens}]")
-                continuation_ids = tokenizer.encode(
-                    CONTINUATION_TEXT, 
-                    add_special_tokens=False,
-                    return_tensors="pt"
-                ).to(model.device)
-                input_ids = torch.cat([input_ids, continuation_ids], dim=1)
-                generated_tokens += continuation_ids.shape[1]
-                continue
-        
-        # Normal token append
-        input_ids = torch.cat([
-            input_ids, 
-            torch.tensor([[next_token_id]], device=model.device)
-        ], dim=1)
-        generated_tokens += 1
-        
-        # Progress indicator for long generations
-        if verbose and generated_tokens % 200 == 0:
-            print(f"  [Generated {generated_tokens} tokens...]")
-        
-        # Periodic garbage collection to prevent memory fragmentation
-        if generated_tokens % 100 == 0:
-            clear_gpu_memory()
-    
-    # Decode
-    full_output = tokenizer.decode(input_ids[0, prompt_length:], skip_special_tokens=False)
-    
-    # Extract YES/NO answer
-    answer = extract_answer(full_output)
-    
-    # Clean up GPU memory before returning
-    del input_ids
-    clear_gpu_memory()
-    
-    return GenerationResult(
-        full_output=full_output,
-        answer=answer,
-        token_count=generated_tokens,
-        think_end_positions=think_end_positions,
-        condition=condition,
-    )
 
 
 def generate_response(
@@ -335,28 +89,108 @@ def generate_response(
     prompt: str,
     condition: str,
     gen_config: GenerationConfig = None,
-    verbose: bool = False,
-    use_nnsight: bool = False
+    verbose: bool = False
 ) -> GenerationResult:
     """
-    Generate response under specified condition.
+    Generate response with proper O(n) KV caching for extended conditions.
     
-    Args:
-        model: The language model (nnsight LanguageModel)
-        tokenizer: The tokenizer
-        prompt: Formatted input prompt
-        condition: One of "normal", "extended_1x", "extended_2x"
-        gen_config: Generation parameters (uses defaults if None)
-        verbose: Print debug info
-        use_nnsight: Use slow nnsight loop (for activation analysis), default False
-        
-    Returns:
-        GenerationResult with full output, extracted answer, and metadata
+    Uses token-by-token generation with persistent KV cache to avoid
+    recomputing attention after each intercept.
     """
-    if use_nnsight:
-        return generate_response_nnsight(model, tokenizer, prompt, condition, gen_config, verbose)
-    else:
-        return generate_response_chunked(model, tokenizer, prompt, condition, gen_config, verbose)
+    if gen_config is None:
+        gen_config = GenerationConfig()
+    
+    settings = CONDITION_SETTINGS[condition]
+    max_tokens = settings["max_tokens"]
+    intercept_count = settings["intercept_count"]
+    
+    # Get underlying HuggingFace model
+    hf_model = getattr(model, '_model', model)
+    
+    input_ids = tokenizer.encode(prompt, return_tensors="pt").to(hf_model.device)
+    
+    think_end_encounters = 0
+    think_end_positions = []
+    generated_ids = []
+    
+    # KV cache persists across tokens - this is the key to O(n)
+    past_key_values = None
+    
+    for step in range(max_tokens):
+        with torch.no_grad():
+            outputs = hf_model(
+                input_ids=input_ids,
+                past_key_values=past_key_values,
+                use_cache=True,
+            )
+        
+        # Get logits for last position
+        logits = outputs.logits[0, -1, :]
+        
+        # Sample next token
+        next_token_id = sample_token(logits, gen_config.temperature, gen_config.top_p)
+        
+        # Update KV cache
+        past_key_values = outputs.past_key_values
+        
+        # Check for EOS
+        if next_token_id == tokenizer.eos_token_id:
+            if verbose:
+                print(f"  [EOS at position {len(generated_ids)}]")
+            break
+        
+        # Check for </think>
+        if next_token_id == THINK_END_ID:
+            think_end_positions.append(len(generated_ids))
+            think_end_encounters += 1
+            
+            if think_end_encounters <= intercept_count:
+                # INTERCEPT: replace </think> with continuation
+                if verbose:
+                    print(f"  [INTERCEPT #{think_end_encounters} at position {len(generated_ids)}]")
+                
+                # Encode continuation text and add to sequence
+                continuation_ids = tokenizer.encode(
+                    CONTINUATION_TEXT,
+                    add_special_tokens=False,
+                    return_tensors="pt"
+                ).to(hf_model.device)
+                
+                # Add continuation tokens to our tracking
+                generated_ids.extend(continuation_ids[0].tolist())
+                
+                # Process continuation tokens through model to update KV cache
+                # This maintains O(n) because we're processing just continuation tokens
+                with torch.no_grad():
+                    cont_outputs = hf_model(
+                        input_ids=continuation_ids,
+                        past_key_values=past_key_values,
+                        use_cache=True,
+                    )
+                past_key_values = cont_outputs.past_key_values
+                
+                # Next iteration will generate from last continuation token
+                input_ids = continuation_ids[:, -1:]
+                continue
+        
+        # Normal token: add to sequence
+        generated_ids.append(next_token_id)
+        input_ids = torch.tensor([[next_token_id]], device=hf_model.device)
+        
+        if verbose and len(generated_ids) % 200 == 0:
+            print(f"  [Generated {len(generated_ids)} tokens...]")
+    
+    # Decode
+    full_output = tokenizer.decode(generated_ids, skip_special_tokens=False)
+    answer = extract_answer(full_output)
+    
+    return GenerationResult(
+        full_output=full_output,
+        answer=answer,
+        token_count=len(generated_ids),
+        think_end_positions=think_end_positions,
+        condition=condition,
+    )
 
 
 def generate_batch(
@@ -368,21 +202,10 @@ def generate_batch(
     verbose: bool = False
 ) -> List[GenerationResult]:
     """
-    Generate responses for multiple prompts in parallel (batched).
+    Generate responses for multiple prompts.
     
-    For 'normal' condition: Full batching with KV cache.
-    For 'extended_*' conditions: Falls back to sequential (interception logic is per-sequence).
-    
-    Args:
-        model: The language model (nnsight LanguageModel)
-        tokenizer: The tokenizer
-        prompts: List of formatted input prompts
-        condition: One of "normal", "extended_1x", "extended_2x", etc.
-        gen_config: Generation parameters
-        verbose: Print debug info
-        
-    Returns:
-        List of GenerationResult objects
+    For 'normal' condition: Full batching with HF generate().
+    For 'extended_*' conditions: Sequential with O(n) KV caching per sequence.
     """
     if gen_config is None:
         gen_config = GenerationConfig()
@@ -390,31 +213,26 @@ def generate_batch(
     settings = CONDITION_SETTINGS[condition]
     intercept_count = settings["intercept_count"]
     
-    # For extended conditions, fall back to sequential (interception is per-sequence)
+    # Get underlying HuggingFace model
+    hf_model = getattr(model, '_model', model)
+    
+    # For extended conditions, run sequentially with KV cache
     if intercept_count > 0:
         results = []
         for p in tqdm(prompts, desc=f"  {condition}", unit="sample", leave=False):
-            results.append(generate_response_chunked(model, tokenizer, p, condition, gen_config, verbose))
+            results.append(generate_response(model, tokenizer, p, condition, gen_config, verbose))
         return results
     
-    # For normal condition: true batched generation
+    # For normal condition: use HF generate() with batching
     max_tokens = settings["max_tokens"]
     
-    # Tokenize all prompts with padding
-    tokenizer.padding_side = "left"  # Left-pad for generation
+    tokenizer.padding_side = "left"
     inputs = tokenizer(
-        prompts, 
-        return_tensors="pt", 
+        prompts,
+        return_tensors="pt",
         padding=True,
         truncation=True
-    ).to(model.device)
-    
-    prompt_lengths = [
-        (inputs.attention_mask[i] == 1).sum().item() 
-        for i in range(len(prompts))
-    ]
-    
-    hf_model = model._model
+    ).to(hf_model.device)
     
     with torch.no_grad():
         outputs = hf_model.generate(
@@ -426,20 +244,14 @@ def generate_batch(
             top_p=gen_config.top_p,
             pad_token_id=tokenizer.eos_token_id,
             return_dict_in_generate=True,
-            use_cache=True,  # Explicitly enable KV cache
+            use_cache=True,
         )
     
     results = []
     for i, seq in enumerate(outputs.sequences):
-        # Find where actual content starts (after padding)
-        prompt_len = prompt_lengths[i]
-        pad_len = inputs.input_ids.shape[1] - prompt_len
-        
-        # Decode only the generated part
         generated_ids = seq[inputs.input_ids.shape[1]:]
         full_output = tokenizer.decode(generated_ids, skip_special_tokens=False)
         
-        # Find </think> positions in generated output
         think_end_positions = []
         for j, tok_id in enumerate(generated_ids.tolist()):
             if tok_id == THINK_END_ID:
@@ -455,7 +267,6 @@ def generate_batch(
             condition=condition,
         ))
     
-    # Cleanup
     del outputs, inputs
     clear_gpu_memory()
     
@@ -463,4 +274,3 @@ def generate_batch(
         print(f"  [Batched {len(prompts)} prompts]")
     
     return results
-

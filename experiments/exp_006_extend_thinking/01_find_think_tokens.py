@@ -17,7 +17,8 @@ import torch
 from transformers import AutoTokenizer
 
 #%% Configuration
-MODEL_NAME = "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
+MODEL_NAME = "Qwen/QwQ-32B"
+#"deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
 
 # Known token IDs (for reference/verification)
 KNOWN_THINK_START_ID = 151648  # <think>

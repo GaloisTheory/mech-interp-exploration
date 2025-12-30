@@ -73,6 +73,12 @@ Examples:
         help="Quick test mode (3 pairs only)"
     )
     parser.add_argument(
+        "--max-pairs",
+        type=int,
+        default=None,
+        help="Maximum number of question pairs to use (default: all available)"
+    )
+    parser.add_argument(
         "--verbose",
         action="store_true",
         help="Print detailed per-sample output"
@@ -95,6 +101,7 @@ Examples:
     print(f"  Experiment:  {args.name}")
     print(f"  Conditions:  {args.conditions}")
     print(f"  Samples/Q:   {args.samples}")
+    print(f"  Max pairs:   {args.max_pairs if args.max_pairs else 'All available'}")
     print(f"  Shard:       {args.shard if args.shard else 'None (all pairs)'}")
     print(f"  Test mode:   {args.test}")
     print(f"  Verbose:     {args.verbose}")
@@ -104,7 +111,7 @@ Examples:
     model, tokenizer = load_model()
     
     # Load pairs
-    pairs, shard_info = load_pairs(shard=shard, test_mode=args.test)
+    pairs, shard_info = load_pairs(shard=shard, test_mode=args.test, max_pairs=args.max_pairs)
     
     # Run experiment
     results = run_experiment(
@@ -115,6 +122,9 @@ Examples:
         samples_per_question=args.samples,
         verbose=args.verbose,
         save_raw=args.save_raw,
+        experiment_name=args.name,
+        shard=shard,
+        test_mode=args.test,
     )
     
     # Print summary

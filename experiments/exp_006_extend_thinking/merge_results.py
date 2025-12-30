@@ -22,9 +22,23 @@ from evaluation import compare_conditions, PairResult
 
 
 def find_shard_files(experiment_name: str, output_dir: str) -> list:
-    """Find all shard files for an experiment."""
-    pattern = os.path.join(output_dir, f"{experiment_name}_shard*_*.json")
-    files = glob(pattern)
+    """Find all shard files for an experiment.
+    
+    Looks in subfolders matching {experiment_name}_* pattern.
+    """
+    # First, find experiment subfolders
+    pattern = os.path.join(output_dir, f"{experiment_name}_*")
+    experiment_folders = [f for f in glob(pattern) if os.path.isdir(f)]
+    
+    # If no subfolders found, check the base output_dir (for backward compatibility)
+    search_dirs = experiment_folders if experiment_folders else [output_dir]
+    
+    # Find shard files in all search directories
+    all_files = []
+    for search_dir in search_dirs:
+        pattern = os.path.join(search_dir, f"{experiment_name}_shard*_*.json")
+        files = glob(pattern)
+        all_files.extend(files)
     
     # Sort by shard number
     def get_shard_num(f):
@@ -36,7 +50,7 @@ def find_shard_files(experiment_name: str, output_dir: str) -> list:
         except:
             return 0
     
-    return sorted(files, key=get_shard_num)
+    return sorted(all_files, key=get_shard_num)
 
 
 def merge_results(shard_files: list) -> dict:
@@ -78,6 +92,21 @@ def merge_results(shard_files: list) -> dict:
     for condition in conditions:
         results_by_condition[condition] = []
         for pair_data in merged["by_pair"][condition]:
+            # Extract reasoning chains if present, otherwise use empty lists
+            q1_outputs = []
+            q2_outputs = []
+            if "reasoning_chains" in pair_data:
+                # Extract from reasoning_chains structure
+                reasoning_chains = pair_data["reasoning_chains"]
+                for sample_key in sorted(reasoning_chains.keys()):
+                    sample_data = reasoning_chains[sample_key]
+                    q1_outputs.append(sample_data.get("q1_reasoning", ""))
+                    q2_outputs.append(sample_data.get("q2_reasoning", ""))
+            elif "q1_outputs" in pair_data:
+                # Fallback to old format if present
+                q1_outputs = pair_data.get("q1_outputs", [])
+                q2_outputs = pair_data.get("q2_outputs", [])
+            
             # Create a minimal PairResult-like object
             result = PairResult(
                 q1_text=pair_data["q1_text"],
@@ -88,8 +117,8 @@ def merge_results(shard_files: list) -> dict:
                 q2_expected=pair_data["q2_expected"],
                 category=pair_data["category"],
                 condition=condition,
-                q1_outputs=[],
-                q2_outputs=[],
+                q1_outputs=q1_outputs,
+                q2_outputs=q2_outputs,
             )
             results_by_condition[condition].append(result)
     
@@ -159,8 +188,20 @@ Example:
     # Merge
     merged = merge_results(shard_files)
     
-    # Save
-    output_file = os.path.join(args.output_dir, f"{args.experiment_name}_merged.json")
+    # Determine output directory (use the folder containing the shard files if they're in a subfolder)
+    if shard_files:
+        # Get the directory of the first shard file
+        shard_dir = os.path.dirname(shard_files[0])
+        # If it's a subfolder (not the base output_dir), use it
+        if shard_dir != args.output_dir:
+            output_dir = shard_dir
+        else:
+            output_dir = args.output_dir
+    else:
+        output_dir = args.output_dir
+    
+    # Save merged file in the same directory as the shard files
+    output_file = os.path.join(output_dir, f"{args.experiment_name}_merged.json")
     with open(output_file, "w") as f:
         json.dump(merged, f, indent=2)
     

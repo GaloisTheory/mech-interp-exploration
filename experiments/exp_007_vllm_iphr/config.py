@@ -1,9 +1,13 @@
-"""Central configuration for IPHR experiment."""
-from dataclasses import dataclass, field
-from typing import List
+"""Configuration for vLLM-based IPHR experiment with extended thinking."""
 
-# MODEL_NAME = "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
-MODEL_NAME = "Qwen/QwQ-32B"
+import os
+
+# Set cache before any HF imports
+os.environ["HF_HOME"] = "/workspace/.cache/huggingface"
+os.environ["HF_HUB_CACHE"] = "/workspace/.cache/huggingface/hub"
+
+# Model configuration
+MODEL_NAME = "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
 
 # </think> token IDs vary by model family
 THINK_END_IDS = {
@@ -13,6 +17,7 @@ THINK_END_IDS = {
     "Qwen/QwQ-32B": 151668,
     "Qwen/QwQ-32B-Preview": 151668,
 }
+
 
 def get_think_end_id(model_name: str) -> int:
     """Get the </think> token ID for a given model."""
@@ -25,23 +30,13 @@ def get_think_end_id(model_name: str) -> int:
         return 151649
     raise ValueError(f"Unknown model {model_name}. Add to THINK_END_IDS in config.py")
 
+
 THINK_END_ID = get_think_end_id(MODEL_NAME)
 
+# Continuation text injected when we intercept </think>
+CONTINUATION_TEXT = "\n\nWait, let me reconsider this step by step..."
 
-@dataclass
-class GenerationConfig:
-    temperature: float = 0.6
-    top_p: float = 0.95
-    max_tokens: int = 1200  # Increased for larger model
-
-
-@dataclass
-class ExperimentConfig:
-    conditions: List[str] = field(default_factory=lambda: ["normal", "extended_1x"])
-    samples_per_question: int = 5  # N responses per question
-    test_mode_n: int = 3  # Number of pairs for quick testing
-
-
+# Condition settings: max_tokens and number of intercepts
 CONDITION_SETTINGS = {
     "normal": {"max_tokens": 1200, "intercept_count": 0},
     "extended_1x": {"max_tokens": 2000, "intercept_count": 1},
@@ -50,5 +45,7 @@ CONDITION_SETTINGS = {
     "extended_10x": {"max_tokens": 16000, "intercept_count": 10},
 }
 
-CONTINUATION_TEXT = "\n\nWait, let me reconsider this step by step..."
+# Generation parameters
+TEMPERATURE = 0.6
+TOP_P = 0.95
 

@@ -48,10 +48,13 @@ exp_006_extend_thinking/
 ├── generation.py            # Generation logic
 ├── evaluation.py            # IPHR scoring
 └── outputs/                 # Results directory
-    ├── {name}_config.json           # Experiment config
-    ├── {name}_shard1of8_*.json     # Shard results
-    └── {name}_merged.json          # Combined results
+    └── {name}_{timestamp}/  # Subfolder per experiment run
+        ├── {name}_config.json           # Experiment config
+        ├── {name}_shard1of8_*.json     # Shard results
+        └── {name}_merged.json          # Combined results
 ```
+
+**Note:** Each experiment run creates its own subfolder `{name}_{timestamp}` to keep results organized. Sharded runs automatically use the same folder (if created within the last hour).
 
 ## CLI Options
 

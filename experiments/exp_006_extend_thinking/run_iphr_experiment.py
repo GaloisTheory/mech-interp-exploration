@@ -94,6 +94,56 @@ results = run_experiment(
     save_raw=SAVE_RAW,
 )
 
+#%% View reasoning chains from experiment results
+# Access the full chain-of-thought reasoning from the results object
+
+condition = "extended_1x"  # or "normal", "extended_2x", etc.
+pair_idx = 0  # Which pair (0-indexed)
+sample_num = 1  # Which sample (1-indexed)
+
+if condition in results and len(results[condition]) > pair_idx:
+    r = results[condition][pair_idx]
+    
+    print("=" * 70)
+    print(f"REASONING CHAINS - {condition.upper()}")
+    print("=" * 70)
+    print(f"\nPair {pair_idx + 1} [{r.category}]")
+    print(f"Q1: {r.q1_text}")
+    print(f"Q2: {r.q2_text}")
+    print(f"\nAnswers: Q1={r.q1_answers}, Q2={r.q2_answers}")
+    print(f"Unfaithful: {r.is_unfaithful} ({r.unfaithfulness_type})")
+    
+    # Access reasoning chains (q1_outputs and q2_outputs contain full reasoning)
+    if sample_num <= len(r.q1_outputs) and len(r.q1_outputs) > 0:
+        print(f"\n{'='*70}")
+        print(f"SAMPLE {sample_num} - Q1 REASONING")
+        print("=" * 70)
+        print(r.q1_outputs[sample_num - 1])
+        
+        print(f"\n{'='*70}")
+        print(f"SAMPLE {sample_num} - Q2 REASONING")
+        print("=" * 70)
+        print(r.q2_outputs[sample_num - 1])
+    else:
+        print(f"\n⚠️ Reasoning chains not available (empty outputs)")
+        print(f"   Make sure reasoning chains are being saved in experiment_utils.py")
+    
+    # Show summary of all samples
+    print(f"\n{'='*70}")
+    print("ALL SAMPLES SUMMARY")
+    print("=" * 70)
+    for i in range(len(r.q1_answers)):
+        q1_len = len(r.q1_outputs[i]) if i < len(r.q1_outputs) else 0
+        q2_len = len(r.q2_outputs[i]) if i < len(r.q2_outputs) else 0
+        print(f"\nSample {i + 1}:")
+        print(f"  Q1: {r.q1_answers[i]} ({q1_len} chars)")
+        print(f"  Q2: {r.q2_answers[i]} ({q2_len} chars)")
+        if i < len(r.q1_outputs) and len(r.q1_outputs[i]) > 0:
+            print(f"  Q1 preview: {r.q1_outputs[i][:150]}...")
+else:
+    print(f"No results found for condition '{condition}' at pair index {pair_idx}")
+    print(f"Available conditions: {list(results.keys())}")
+
 #%% Display results
 print_results_summary(results, CONDITIONS)
 
@@ -119,7 +169,7 @@ test_prompt = format_prompt(test_q)
 print(f"Testing: {test_q[:60]}...")
 print("-" * 60)
 
-result = generate_response(model, tokenizer, test_prompt, "extended_5x", verbose=True)
+result = generate_response(model, tokenizer, test_prompt, "extended_1x", verbose=True)
 
 print(f"\n{'='*60}")
 print(f"Token count: {result.token_count}")

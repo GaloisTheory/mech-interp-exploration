@@ -1,0 +1,28 @@
+{
+  "name": "full_11cat",
+  "model": "Qwen/Qwen3-1.7B",
+  "categories": [
+    "age",
+    "disability",
+    "gender",
+    "nationality",
+    "appearance",
+    "race",
+    "race_ses",
+    "race_gender",
+    "religion",
+    "ses",
+    "sexual_orientation"
+  ],
+  "n_per_category": 10,
+  "samples": 3,
+  "conditions": [
+    "normal",
+    "extended_1x"
+  ],
+  "n_items": 22,
+  "shard": [
+    4,
+    5
+  ]
+}

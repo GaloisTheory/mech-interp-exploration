@@ -50,6 +50,8 @@ from batch_utils import (
     clear_checkpoint,
     save_results,
     OUTPUT_DIR,
+    load_baseline_token_map,
+    resolve_dynamic_override,
 )
 
 
@@ -61,14 +63,27 @@ def parse_args():
     parser.add_argument("config", help="Path to YAML config file")
     parser.add_argument("--resume", action="store_true", help="Resume from checkpoint")
     parser.add_argument("--dry-run", action="store_true", help="Show questions without running")
+    parser.add_argument("--model", type=str, default=None,
+                        help="Override model name from config (e.g., Qwen/Qwen3-1.7B)")
+    parser.add_argument("--model-prefix", type=str, default=None,
+                        help="Prefix for output folder names (e.g., qwen_1.7B)")
     return parser.parse_args()
 
 
 # =============================================================================
 # MAIN EXPERIMENT RUNNER
 # =============================================================================
-def run_experiment(config_path: str, resume: bool = False, dry_run: bool = False):
-    """Run a batch experiment from config file."""
+def run_experiment(config_path: str, resume: bool = False, dry_run: bool = False,
+                   model_override: str = None, model_prefix: str = None):
+    """Run a batch experiment from config file.
+    
+    Args:
+        config_path: Path to YAML config file
+        resume: Resume from checkpoint if True
+        dry_run: Show questions without running if True
+        model_override: Override model name from config (optional, for running same config with different models)
+        model_prefix: Prefix for output folder names (optional, for organizing outputs by model)
+    """
     
     # Load config
     print("=" * 60)
@@ -82,8 +97,14 @@ def run_experiment(config_path: str, resume: bool = False, dry_run: bool = False
     config = load_config(config_path)
     exp_name = config.get("name", "unnamed")
     
+    # Apply model prefix to experiment name if specified
+    if model_prefix:
+        exp_name = f"{model_prefix}_{exp_name}"
+    
     print(f"\nExperiment: {exp_name}")
     print(f"Config: {config_path}")
+    if model_override:
+        print(f"Model override: {model_override}")
     
     # Create output directory
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -144,7 +165,7 @@ def run_experiment(config_path: str, resume: bool = False, dry_run: bool = False
     print("-" * 60)
     
     model_cfg = config.get("model", {})
-    model_name = model_cfg.get("name", "Qwen/Qwen3-8B")
+    model_name = model_override if model_override else model_cfg.get("name", "Qwen/Qwen3-8B")
     
     print(f"Loading: {model_name}")
     print("This may take a minute...")
@@ -170,10 +191,26 @@ def run_experiment(config_path: str, resume: bool = False, dry_run: bool = False
     override_cfg = config.get("override", {})
     token_to_match = override_cfg.get("token_to_match", "</think>")
     intercept_count = override_cfg.get("intercept_count", 0)
-    schedule = override_cfg.get("schedule", [])
     position_overrides = override_cfg.get("position_overrides", [])
     
-    override_fn = make_override_fn(schedule)
+    # Check for dynamic mode (per-question resolution needed)
+    has_dynamic = override_cfg.get("dynamic") is not None
+    has_blank_spaces = override_cfg.get("blank_spaces") is not None
+    has_incorrect_reps = override_cfg.get("incorrect_answer_repetitions") is not None
+    has_placeholder = any("{incorrect_answer}" in str(entry) for entry in override_cfg.get("schedule", []))
+    use_dynamic_override = has_dynamic or has_blank_spaces or has_incorrect_reps or has_placeholder
+    
+    # Load baseline token map if needed for dynamic mode
+    token_map = None
+    if has_dynamic:
+        print("Loading baseline token map for dynamic mode...")
+        token_map = load_baseline_token_map(prefix=model_prefix)
+        print(f"Loaded token stats for {len(token_map)} questions")
+    
+    # For static mode, create override function once
+    if not use_dynamic_override:
+        schedule = override_cfg.get("schedule", [])
+        override_fn = make_override_fn(schedule)
     
     num_samples = config.get("samples", 10)
     
@@ -212,6 +249,13 @@ def run_experiment(config_path: str, resume: bool = False, dry_run: bool = False
         
         # Build prompt
         prompt = build_prompt(item, use_few_shot=use_few_shot)
+        
+        # Resolve dynamic override for this question if needed
+        if use_dynamic_override:
+            resolved_schedule = resolve_dynamic_override(
+                override_cfg, item, q_idx, token_map, seed=seed
+            )
+            override_fn = make_override_fn(resolved_schedule)
         
         # Run samples
         samples = []
@@ -299,5 +343,11 @@ def run_experiment(config_path: str, resume: bool = False, dry_run: bool = False
 # =============================================================================
 if __name__ == "__main__":
     args = parse_args()
-    run_experiment(args.config, resume=args.resume, dry_run=args.dry_run)
+    run_experiment(
+        args.config,
+        resume=args.resume,
+        dry_run=args.dry_run,
+        model_override=args.model,
+        model_prefix=args.model_prefix,
+    )
 

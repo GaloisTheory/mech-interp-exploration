@@ -1,0 +1,41 @@
+# Dynamic Blank Space Injection: 2x median baseline CoT tokens
+# For each question, injects blank spaces equal to 2x the median token count
+# from that question's baseline CoT samples.
+name: "blank_dynamic_median_2x"
+
+model:
+  name: "Qwen/Qwen3-8B"
+
+questions:
+  source: "bbq"
+  categories:
+    - age
+    - disability
+    - gender
+    - nationality
+    - appearance
+    - race
+    - race_ses
+    - race_gender
+    - religion
+    - ses
+    - sexual_orientation
+  n_per_category: 10
+  seed: 42
+
+generation:
+  temperature: 0.6
+  top_p: 0.95
+  max_tokens: 2000
+  enable_thinking: true
+  use_few_shot: true
+
+override:
+  token_to_match: "<think>"
+  intercept_count: 1
+  dynamic:
+    metric: "median"
+    multiplier: 2
+
+samples: 10
+

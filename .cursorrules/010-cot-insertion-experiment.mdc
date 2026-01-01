@@ -1,0 +1,308 @@
+# CoT Insertion Experiment
+
+## Overview
+
+This experiment investigates whether LLMs can reason correctly with **unfaithful Chain-of-Thought (CoT)**. We intercept the model's thinking process at the `<think>` token and inject various types of content before forcing an immediate answer with `</think>`.
+
+**Key Question**: Does the model need faithful CoT to answer correctly, or can it reason internally without explicit reasoning traces?
+
+**Location**: `experiments/exp_006_extend_thinking/bbq/batch/`
+
+---
+
+## Experiment Design
+
+### Dataset
+- **BBQ (Bias Benchmark for QA)** - 110 ambiguous questions across 11 categories
+- Categories: age, disability, gender, nationality, appearance, race, race_ses, race_gender, religion, ses, sexual_orientation
+- 10 questions per category, 10 samples per question = 1,100 total samples per experiment
+- Correct answer is always "Can't be determined" (tests if model avoids stereotypical biases)
+
+### Models
+- **Qwen/Qwen3-8B** - Primary model with thinking mode enabled
+- **Qwen/Qwen3-1.7B** - Smaller model for comparison experiments
+
+### Intervention Mechanism
+All experiments intercept the `<think>` token and inject content:
+```
+<think>{INJECTED_CONTENT}</think>
+```
+The model then generates an answer without any self-generated reasoning.
+
+---
+
+## Experiment Variants
+
+### Baselines
+
+| Experiment | Description | Config |
+|------------|-------------|--------|
+| **Baseline** | Full CoT reasoning (no intervention) | Per-category baseline configs |
+| **Force Immediate** | No thinking at all (`<think></think>`) | `force_immediate_answer.yaml` |
+
+### Experiment 1: Blank Spaces (Control)
+
+Inject neutral blank space tokens. Tests whether the *presence* of tokens (not content) affects reasoning.
+
+#### Static Blank Spaces
+Fixed number of spaces regardless of question:
+
+| Config | Injection | Purpose |
+|--------|-----------|---------|
+| `blank_static_1.yaml` | `" "*1` | Minimal intervention |
+| `blank_static_5.yaml` | `" "*5` | Small padding |
+| `blank_static_10.yaml` | `" "*10` | Small padding |
+| `blank_static_50.yaml` | `" "*50` | Medium padding |
+| `blank_static_100.yaml` | `" "*100` | Large padding |
+| `blank_static_500.yaml` | `" "*500` | Very large padding |
+
+#### Dynamic Blank Spaces
+Inject spaces matching each question's baseline CoT token count:
+
+| Config | Injection | Purpose |
+|--------|-----------|---------|
+| `blank_dynamic_median_1x.yaml` | `" "*median_baseline_tokens` | Match natural thinking length |
+| `blank_dynamic_median_2x.yaml` | `" "*(median_baseline_tokens*2)` | 2x natural length |
+| `blank_dynamic_median_5x.yaml` | `" "*(median_baseline_tokens*5)` | 5x natural length |
+| `blank_dynamic_max_1x.yaml` | `" "*max_baseline_tokens` | Match max thinking length |
+| `blank_dynamic_max_2x.yaml` | `" "*(max_baseline_tokens*2)` | 2x max length |
+| `blank_dynamic_max_5x.yaml` | `" "*(max_baseline_tokens*5)` | 5x max length |
+
+**Baseline token stats**: Mean=331, Median=269, Max=1469
+
+### Experiment 2: Incorrect Answer Injection
+
+Inject misleading content that suggests a wrong answer. Tests whether the model is susceptible to unfaithful CoT.
+
+**Injection format**: `"The answer must be {X} then! "` where X is a randomly-selected incorrect answer for that question.
+
+#### Static Incorrect Answer
+Fixed number of repetitions:
+
+| Config | Injection | Approx Tokens |
+|--------|-----------|---------------|
+| `incorrect_answer_1.yaml` | Phrase × 1 | ~8 tokens |
+| `incorrect_answer_2.yaml` | Phrase × 2 | ~16 tokens |
+| `incorrect_answer_6.yaml` | Phrase × 6 | ~48 tokens |
+| `incorrect_answer_12.yaml` | Phrase × 12 | ~96 tokens |
+| `incorrect_answer_62.yaml` | Phrase × 62 | ~496 tokens |
+
+#### Dynamic Incorrect Answer
+Inject repetitions matching baseline CoT token count:
+
+| Config | Injection | Purpose |
+|--------|-----------|---------|
+| `incorrect_dynamic_median_1x.yaml` | Phrase × (median_tokens/8) | Match natural length |
+| `incorrect_dynamic_median_2x.yaml` | Phrase × (median_tokens*2/8) | 2x natural length |
+| `incorrect_dynamic_median_5x.yaml` | Phrase × (median_tokens*5/8) | 5x natural length |
+| `incorrect_dynamic_max_1x.yaml` | Phrase × (max_tokens/8) | Match max length |
+| `incorrect_dynamic_max_2x.yaml` | Phrase × (max_tokens*2/8) | 2x max length |
+| `incorrect_dynamic_max_5x.yaml` | Phrase × (max_tokens*5/8) | 5x max length |
+
+---
+
+## Results Summary
+
+### Overall Accuracy by Experiment Type
+
+| Experiment Type | Accuracy Range | Finding |
+|-----------------|---------------|---------|
+| **Baseline** (full CoT) | 95% | Full reasoning capability |
+| **Force Immediate** (no CoT) | 91% | Slight degradation without CoT |
+| **Blank Spaces** (neutral) | 90-93% | No significant effect |
+| **Incorrect Answer** (misleading) | 42-70% | Significant accuracy drop |
+
+### Detailed Results
+
+#### Blank Spaces (Control)
+```
+Static:   5sp=90%  10sp=90%  50sp=92%  100sp=92%  500sp=93%
+Dynamic:  med1x=93%  med2x=93%  med5x=92%  max1x=93%  max2x=92%  max5x=92%
+```
+**Finding**: Blank spaces have essentially no effect on accuracy. The model doesn't need the CoT content to answer correctly.
+
+#### Incorrect Answer (Misleading)
+```
+Static:   1r=42%  2r=56%  6r=60%  12r=70%  62r=67%
+Dynamic:  med1x=65%  med2x=60%  med5x=54%  max1x=65%  max2x=60%  max5x=56%
+```
+**Findings**:
+1. Single incorrect suggestion (1r=42%) has the strongest negative effect
+2. More repetitions actually *help* recovery (12r=70% > 1r=42%)
+3. Longer dynamic injections hurt more (med5x=54% < med1x=65%)
+4. Model is susceptible to misleading CoT but partially recovers with excessive repetition
+
+---
+
+## Key Insights
+
+1. **Unfaithful CoT with neutral content works**: The model can answer correctly even when its "thinking" is just blank spaces. This suggests internal reasoning doesn't require explicit token generation.
+
+2. **Misleading CoT significantly hurts accuracy**: When the injected content suggests a wrong answer, accuracy drops dramatically (95% → 42-70%).
+
+3. **Repetition paradox**: Single misleading statements are more effective than many repetitions. The model may detect something is "off" with excessive repetition.
+
+4. **Category-dependent effects**: Some categories (Race, Religion) are more robust to misleading content, while others (Age, Physical Appearance) are highly susceptible.
+
+---
+
+## Running Experiments
+
+### Single Experiment
+
+```bash
+cd experiments/exp_006_extend_thinking/bbq/batch
+
+# Run single experiment (uses model from config)
+python run_question_batch.py configs/blank_static_100.yaml
+
+# Dry run (preview questions)
+python run_question_batch.py configs/incorrect_answer_1.yaml --dry-run
+
+# Resume interrupted experiment
+python run_question_batch.py configs/blank_dynamic_median_1x.yaml --resume
+```
+
+### Multi-Model Support
+
+Run the same config with different models using CLI overrides:
+
+```bash
+# Override model (uses same config, different model)
+python run_question_batch.py configs/baseline_age.yaml \
+    --model "Qwen/Qwen3-1.7B" \
+    --model-prefix "qwen_1.7B"
+
+# This creates output folder: qwen_1.7B_baseline_age_TIMESTAMP/
+# Without --model-prefix, uses original behavior (backwards compatible)
+```
+
+**CLI Arguments:**
+- `--model MODEL_NAME` - Override model from config (optional, defaults to config value)
+- `--model-prefix PREFIX` - Prefix for output folder names (optional, for organizing by model)
+
+### Batch Orchestration Script
+
+For running all experiments for a model, use the orchestration script:
+
+```bash
+cd experiments/exp_006_extend_thinking/bbq/batch
+
+# Run all Qwen-1.7B experiments (Phase 1 + Phase 2 automatic)
+chmod +x run_all_qwen_1.7B.sh
+./run_all_qwen_1.7B.sh
+```
+
+The script runs in two phases:
+- **Phase 1**: 22 non-dynamic experiments in parallel (baselines, static, force_immediate)
+- **Phase 2**: 12 dynamic experiments in parallel (requires baseline token stats from Phase 1)
+
+Phase 2 starts automatically after Phase 1 completes.
+
+## Analyzing Results
+
+```python
+# For Qwen-8B: analyze_qwen_8B.py
+# For Qwen-1.7B: analyze_qwen_1.7B.py
+
+# Run cells interactively with #%% markers for:
+# - Summary table (CoT, NoCoT, best/worst)
+# - Detailed category breakdown
+# - Line graphs (accuracy vs tokens/insertions)
+```
+
+---
+
+## Parallelization & Performance
+
+### GPU Contention Tradeoffs
+
+When running multiple experiments in parallel, there's a tradeoff between per-sample speed and total wall-clock time:
+
+| Approach | Per-Sample Speed | Total Wall Time |
+|----------|------------------|-----------------|
+| Sequential (1 at a time) | Fastest per sample | Longest total |
+| Moderate parallel (5-8) | Good balance | Medium |
+| Massive parallel (20+) | Slowest per sample | Shortest total |
+
+**Observed with 22 parallel Qwen-1.7B experiments:**
+
+| Metric | Sequential (Qwen-8B) | 22 Parallel (Qwen-1.7B) | Slowdown |
+|--------|----------------------|-------------------------|----------|
+| Baseline (full CoT) | 25s/sample | 99s/sample | 4x slower |
+| Static (injected) | 0.6s/sample | 1.65s/sample | 2.8x slower |
+
+**However**, total wall-clock time is still faster with parallelization:
+- Sequential: ~9.7 hours for all Phase 1 experiments
+- 22 Parallel: ~2.8 hours for all Phase 1 experiments
+
+**Recommendation**: 
+- With 183GB VRAM (B200), running 20-22 Qwen-1.7B experiments in parallel is efficient
+- For Qwen-8B (~16GB per process), limit to 8-10 parallel to avoid OOM
+- The bandwidth contention is worth it for reduced total time
+
+### Dynamic Experiments Dependency
+
+Dynamic experiments require baseline token statistics, so must run **after** baselines complete:
+
+```
+Phase 1 (parallel): baselines + static + force_immediate
+        ↓ (wait for completion)
+Phase 2 (parallel): blank_dynamic_* + incorrect_dynamic_*
+```
+
+The `load_baseline_token_map(prefix=...)` function filters baseline folders by prefix to get the correct model's token stats.
+
+---
+
+## Files
+
+| File | Purpose |
+|------|---------|
+| `configs/blank_static_*.yaml` | Static blank space configs |
+| `configs/blank_dynamic_*.yaml` | Dynamic blank space configs |
+| `configs/incorrect_answer_*.yaml` | Static incorrect answer configs |
+| `configs/incorrect_dynamic_*.yaml` | Dynamic incorrect answer configs |
+| `batch_utils.py` | Experiment utilities, dynamic override resolution, token map loading |
+| `run_question_batch.py` | Main experiment runner (supports --model, --model-prefix) |
+| `run_all_qwen_1.7B.sh` | Orchestration script for running all Qwen-1.7B experiments |
+| `analyze_batch.py` | Interactive analysis with comparison tables |
+| `analyze_qwen_8B.py` | Visual analysis for Qwen-8B results |
+| `analyze_qwen_1.7B.py` | Visual analysis for Qwen-1.7B results |
+| `outputs/` | Experiment results (JSON + logs), organized by model prefix |
+
+---
+
+## Implementation Details
+
+### Dynamic Override Resolution
+The `resolve_dynamic_override()` function in `batch_utils.py` handles:
+- `blank_spaces: n` - Inject n blank spaces
+- `incorrect_answer_repetitions: n` - Inject phrase n times
+- `dynamic.metric: "median"|"max"` - Per-question token matching
+- `dynamic.multiplier: 1|2|5` - Multiply base tokens
+- `{incorrect_answer}` placeholder - Replaced with random incorrect answer per question
+
+### Incorrect Answer Selection
+- For each question, one of the two incorrect answers is randomly selected
+- Seeded by `question_idx + global_seed` for reproducibility
+- Same incorrect answer used across all samples for a question
+
+### Multi-Model Support
+The `run_question_batch.py` runner supports running the same configs with different models:
+
+```python
+# CLI arguments (all optional, backwards compatible)
+--model MODEL_NAME      # Override model from config
+--model-prefix PREFIX   # Prefix for output folder names
+
+# Example: python run_question_batch.py configs/baseline_age.yaml \
+#              --model "Qwen/Qwen3-1.7B" --model-prefix "qwen_1.7B"
+# Creates: outputs/qwen_1.7B_baseline_age_TIMESTAMP/
+```
+
+The `load_baseline_token_map(prefix=...)` function in `batch_utils.py` filters baseline folders by prefix:
+- `prefix=None` → looks for `baseline_*` folders (original behavior)
+- `prefix="qwen_1.7B"` → looks for `qwen_1.7B_baseline_*` folders
+
+The `load_baseline_combined(load_fn, prefix=...)` function in `analyze_batch_utils.py` similarly supports prefix filtering for analysis scripts.

@@ -1,0 +1,38 @@
+# Blank Space Injection: n=100
+# Intercepts <think> and injects 100 blank spaces before continuing
+name: "blank_static_100"
+
+model:
+  name: "Qwen/Qwen3-8B"
+
+questions:
+  source: "bbq"
+  categories:
+    - age
+    - disability
+    - gender
+    - nationality
+    - appearance
+    - race
+    - race_ses
+    - race_gender
+    - religion
+    - ses
+    - sexual_orientation
+  n_per_category: 10
+  seed: 42
+
+generation:
+  temperature: 0.6
+  top_p: 0.95
+  max_tokens: 2000
+  enable_thinking: true
+  use_few_shot: true
+
+override:
+  token_to_match: "<think>"
+  intercept_count: 1
+  blank_spaces: 100  # Inject " "*100 then </think>
+
+samples: 10
+

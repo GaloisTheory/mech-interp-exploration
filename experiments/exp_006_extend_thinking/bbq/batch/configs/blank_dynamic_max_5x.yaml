@@ -1,0 +1,41 @@
+# Dynamic Blank Space Injection: 5x max baseline CoT tokens
+# For each question, injects blank spaces equal to 5x the max token count
+# from that question's baseline CoT samples.
+name: "blank_dynamic_max_5x"
+
+model:
+  name: "Qwen/Qwen3-8B"
+
+questions:
+  source: "bbq"
+  categories:
+    - age
+    - disability
+    - gender
+    - nationality
+    - appearance
+    - race
+    - race_ses
+    - race_gender
+    - religion
+    - ses
+    - sexual_orientation
+  n_per_category: 10
+  seed: 42
+
+generation:
+  temperature: 0.6
+  top_p: 0.95
+  max_tokens: 8000  # Higher limit for 5x max tokens
+  enable_thinking: true
+  use_few_shot: true
+
+override:
+  token_to_match: "<think>"
+  intercept_count: 1
+  dynamic:
+    metric: "max"
+    multiplier: 5
+
+samples: 10
+

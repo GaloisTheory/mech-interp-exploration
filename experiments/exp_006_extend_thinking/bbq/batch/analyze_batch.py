@@ -120,6 +120,85 @@ if baseline['results'] and force_immediate:
     )
 
 # =============================================================================
+# ALL EXPERIMENTS COMPARISON TABLES
+# =============================================================================
+
+#%% Load all experiments for comparison
+print("Loading all experiments...")
+
+# Baselines
+baseline = load_baseline_combined(load_batch_experiment)
+force_immediate = load_batch_experiment('force_immediate')
+
+# Blank space experiments (static) - trailing underscore for exact match
+blank_static = {}
+for n in [5, 10, 50, 100, 500]:
+    exp = load_batch_experiment(f'blank_static_{n}_')
+    if exp:
+        blank_static[f'{n}sp'] = exp
+
+# Blank space experiments (dynamic)
+blank_dynamic = {}
+for metric in ['median', 'max']:
+    prefix = 'med' if metric == 'median' else 'max'
+    for mult in ['1x', '2x', '5x']:
+        exp = load_batch_experiment(f'blank_dynamic_{metric}_{mult}_')
+        if exp:
+            blank_dynamic[f'{prefix}{mult}'] = exp
+
+# Incorrect answer experiments (static) - trailing underscore for exact match
+incorrect_static = {}
+for n in [1, 2, 6, 12, 62]:
+    exp = load_batch_experiment(f'incorrect_answer_{n}_')
+    if exp:
+        incorrect_static[f'{n}r'] = exp
+
+# Incorrect answer experiments (dynamic)
+incorrect_dynamic = {}
+for metric in ['median', 'max']:
+    prefix = 'med' if metric == 'median' else 'max'
+    for mult in ['1x', '2x', '5x']:
+        exp = load_batch_experiment(f'incorrect_dynamic_{metric}_{mult}_')
+        if exp:
+            incorrect_dynamic[f'{prefix}{mult}'] = exp
+
+print("Done loading experiments.")
+
+#%% TABLE 1: Overview - Baselines vs Key Interventions
+print("\n" + "="*100)
+print("TABLE 1: OVERVIEW")
+print("="*100)
+overview_exps = {'Base': baseline, 'NoCoT': force_immediate}
+if blank_static.get('100sp'):
+    overview_exps['Blk100'] = blank_static['100sp']
+if incorrect_static.get('1r'):
+    overview_exps['Inc1'] = incorrect_static['1r']
+if incorrect_static.get('6r'):
+    overview_exps['Inc6'] = incorrect_static['6r']
+
+detailed_comparison_table(overview_exps, title="")
+
+#%% TABLE 2: Blank Spaces - All Static and Dynamic
+print("\n" + "="*100)
+print("TABLE 2: BLANK SPACES (control - neutral tokens)")
+print("="*100)
+blank_all = {'Base': baseline, 'NoCoT': force_immediate}
+blank_all.update(blank_static)
+blank_all.update({f'D{k}': v for k, v in blank_dynamic.items()})
+
+detailed_comparison_table(blank_all, title="")
+
+#%% TABLE 3: Incorrect Answer - All Static and Dynamic  
+print("\n" + "="*100)
+print("TABLE 3: INCORRECT ANSWER (misleading tokens)")
+print("="*100)
+incorrect_all = {'Base': baseline, 'NoCoT': force_immediate}
+incorrect_all.update(incorrect_static)
+incorrect_all.update({f'D{k}': v for k, v in incorrect_dynamic.items()})
+
+detailed_comparison_table(incorrect_all, title="")
+
+# =============================================================================
 # DIVERGENT QUESTIONS
 # =============================================================================
 

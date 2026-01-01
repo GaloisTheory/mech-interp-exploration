@@ -1,0 +1,39 @@
+# Incorrect Answer Injection: n=1
+# Intercepts <think> and injects "The answer must be {X} then! " once
+# where X is a randomly selected incorrect answer for that question.
+name: "incorrect_answer_1"
+
+model:
+  name: "Qwen/Qwen3-8B"
+
+questions:
+  source: "bbq"
+  categories:
+    - age
+    - disability
+    - gender
+    - nationality
+    - appearance
+    - race
+    - race_ses
+    - race_gender
+    - religion
+    - ses
+    - sexual_orientation
+  n_per_category: 10
+  seed: 42
+
+generation:
+  temperature: 0.6
+  top_p: 0.95
+  max_tokens: 2000
+  enable_thinking: true
+  use_few_shot: true
+
+override:
+  token_to_match: "<think>"
+  intercept_count: 1
+  incorrect_answer_repetitions: 1  # Inject "The answer must be X then! "*1 then </think>
+
+samples: 10
+

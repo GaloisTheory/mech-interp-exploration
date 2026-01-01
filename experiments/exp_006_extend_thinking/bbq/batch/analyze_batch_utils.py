@@ -393,13 +393,15 @@ def get_question_from_divergent(exp: dict, divergent_item: dict) -> Optional[int
     return None
 
 
-def load_baseline_combined(load_fn, categories: List[str] = None) -> dict:
+def load_baseline_combined(load_fn, categories: List[str] = None, prefix: str = None) -> dict:
     """
     Load and combine all baseline experiments.
     
     Args:
         load_fn: Function to load experiments (e.g., load_batch_experiment)
         categories: List of categories to load (default: all 11)
+        prefix: Optional prefix for experiment names (e.g., 'qwen_1.7B').
+                If provided, loads '{prefix}_baseline_{cat}' instead of 'baseline_{cat}'.
         
     Returns:
         Combined experiment dict with all results merged
@@ -412,7 +414,13 @@ def load_baseline_combined(load_fn, categories: List[str] = None) -> dict:
     
     for cat in categories:
         try:
-            exp = load_fn(f'baseline_{cat}')
+            # Build experiment name with optional prefix
+            if prefix:
+                exp_name = f'{prefix}_baseline_{cat}'
+            else:
+                exp_name = f'baseline_{cat}'
+            
+            exp = load_fn(exp_name)
             if exp and exp.get('results'):
                 baseline_combined['results'].extend(exp['results'])
                 baseline_combined['summary']['by_category'].update(

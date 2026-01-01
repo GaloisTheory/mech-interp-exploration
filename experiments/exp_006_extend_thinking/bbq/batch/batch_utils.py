@@ -26,7 +26,7 @@ for path in [_batch_dir, _bbq_dir, _exp_dir]:
 
 from constants import FEW_SHOT_EXAMPLES
 from shared.config import format_bbq_prompt
-from data.bbq_dataset import BBQItem
+from data.bbq_dataset import BBQItem, load_bbq_items, ALL_CATEGORIES
 
 # Output directory
 OUTPUT_DIR = os.path.join(_batch_dir, "outputs")
@@ -91,6 +91,194 @@ def get_override_for_intercept(intercept_num: int, schedule: list) -> str:
 def make_override_fn(schedule: list) -> Callable[[int], str]:
     """Create an override function from a schedule."""
     return lambda n: get_override_for_intercept(n, schedule)
+
+
+# =============================================================================
+# BASELINE TOKEN MAP (for dynamic experiments)
+# =============================================================================
+
+def load_baseline_token_map(prefix: str = None) -> Dict[int, Dict[str, int]]:
+    """Load per-question token stats from all baseline experiments.
+    
+    Args:
+        prefix: Optional prefix to filter baseline folders (e.g., 'qwen_1.7B').
+                If None, looks for folders starting with 'baseline_' (original behavior).
+                If specified, looks for folders starting with '{prefix}_baseline_'.
+    
+    Returns:
+        Dict mapping global_question_idx -> {'median': int, 'max': int}
+        
+    Since baseline experiments are per-category with local indices 0-9,
+    we reconstruct global indices by matching category + context + question.
+    """
+    import statistics
+    
+    # First, load the same questions that experiments use
+    items = load_bbq_items(
+        categories=ALL_CATEGORIES,
+        n_per_category=10,
+        ambiguous_only=True,
+        seed=42,
+    )
+    
+    # Create a lookup key for each item: (category, context, question) -> global_idx
+    item_to_global_idx = {}
+    for global_idx, item in enumerate(items):
+        key = (item.category.lower(), item.context, item.question)
+        item_to_global_idx[key] = global_idx
+    
+    # Determine folder prefix pattern
+    if prefix:
+        folder_prefix = f"{prefix}_baseline_"
+    else:
+        folder_prefix = "baseline_"
+    
+    # Collect tokens per global question index
+    question_tokens: Dict[int, List[int]] = {}
+    
+    for folder in os.listdir(OUTPUT_DIR):
+        if not folder.startswith(folder_prefix) or not os.path.isdir(os.path.join(OUTPUT_DIR, folder)):
+            continue
+        
+        results_files = glob(os.path.join(OUTPUT_DIR, folder, "results_*.json"))
+        if not results_files:
+            continue
+            
+        with open(results_files[0], 'r') as f:
+            data = json.load(f)
+        
+        for q in data.get("results", []):
+            # Create key to match with global index
+            category = q.get("category", "").lower()
+            context = q.get("context", "")
+            question = q.get("question", "")
+            key = (category, context, question)
+            
+            global_idx = item_to_global_idx.get(key)
+            if global_idx is None:
+                continue
+            
+            for s in q.get("samples", []):
+                tokens = s.get("tokens", 0)
+                if global_idx not in question_tokens:
+                    question_tokens[global_idx] = []
+                question_tokens[global_idx].append(tokens)
+    
+    # Compute median and max for each question
+    token_map = {}
+    for q_idx, tokens in question_tokens.items():
+        token_map[q_idx] = {
+            'median': int(statistics.median(tokens)),
+            'max': max(tokens),
+        }
+    
+    return token_map
+
+
+def get_incorrect_answer(item: BBQItem, seed: int = 42) -> str:
+    """Get a random incorrect answer letter for a question.
+    
+    Args:
+        item: BBQ question item
+        seed: Random seed combined with item index for reproducibility
+        
+    Returns:
+        Letter (A, B, or C) of a randomly chosen incorrect answer
+    """
+    import random
+    
+    correct_idx = item.correct_idx
+    incorrect_indices = [i for i in range(3) if i != correct_idx]
+    
+    # Seed with combination of global seed and item index for reproducibility
+    rng = random.Random(seed + item.item_idx)
+    chosen_idx = rng.choice(incorrect_indices)
+    
+    return ["A", "B", "C"][chosen_idx]
+
+
+def resolve_dynamic_override(
+    override_cfg: dict,
+    item: BBQItem,
+    question_idx: int,
+    token_map: Optional[Dict[int, Dict[str, int]]] = None,
+    seed: int = 42,
+) -> list:
+    """Resolve dynamic override schedule for a specific question.
+    
+    Supports:
+    - Static schedules (returned as-is)
+    - blank_spaces: n - inject " "*n then </think>
+    - incorrect_answer_repetitions: n - inject "The answer must be X then! "*n then </think>
+    - Dynamic blank spaces based on baseline tokens (dynamic.metric + dynamic.multiplier)
+    - {incorrect_answer} placeholder in schedule text
+    
+    Args:
+        override_cfg: The 'override' section from config
+        item: Current BBQ question
+        question_idx: Index of current question
+        token_map: Baseline token map (required for dynamic mode)
+        seed: Random seed for incorrect answer selection
+        
+    Returns:
+        Resolved schedule list
+    """
+    # Handle static blank_spaces config (e.g., blank_spaces: 100)
+    blank_spaces = override_cfg.get("blank_spaces", None)
+    if blank_spaces is not None:
+        text = "<think>" + " " * blank_spaces + "</think>"
+        return [[1, 1, text]]
+    
+    # Handle incorrect_answer_repetitions config (e.g., incorrect_answer_repetitions: 6)
+    incorrect_reps = override_cfg.get("incorrect_answer_repetitions", None)
+    if incorrect_reps is not None:
+        incorrect = get_incorrect_answer(item, seed)
+        phrase = f"The answer must be {incorrect} then! "
+        text = "<think>" + phrase * incorrect_reps + "</think>"
+        return [[1, 1, text]]
+    
+    # Handle dynamic mode (per-question based on baseline)
+    dynamic = override_cfg.get("dynamic", None)
+    if dynamic:
+        metric = dynamic.get("metric", "median")  # 'median' or 'max'
+        multiplier = dynamic.get("multiplier", 1)
+        mode = dynamic.get("mode", "blank_spaces")  # 'blank_spaces' or 'incorrect_answer'
+        
+        if token_map is None:
+            raise ValueError("token_map required for dynamic mode")
+        
+        if question_idx not in token_map:
+            # Fallback to global median if question not in map
+            all_values = [v[metric] for v in token_map.values()]
+            base_tokens = int(sum(all_values) / len(all_values)) if all_values else 100
+        else:
+            base_tokens = token_map[question_idx][metric]
+        
+        n_tokens = base_tokens * multiplier
+        
+        if mode == "incorrect_answer":
+            # "The answer must be X then! " is ~8 tokens
+            incorrect = get_incorrect_answer(item, seed)
+            phrase = f"The answer must be {incorrect} then! "
+            n_reps = max(1, n_tokens // 8)
+            text = "<think>" + phrase * n_reps + "</think>"
+        else:
+            # Default: blank spaces
+            text = "<think>" + " " * n_tokens + "</think>"
+        
+        return [[1, 1, text]]
+    
+    # Handle {incorrect_answer} placeholder in schedule (legacy support)
+    schedule = override_cfg.get("schedule", [])
+    resolved = []
+    for entry in schedule:
+        start, end, text = entry[0], entry[1], entry[2]
+        if "{incorrect_answer}" in text:
+            incorrect = get_incorrect_answer(item, seed)
+            text = text.replace("{incorrect_answer}", incorrect)
+        resolved.append([start, end, text])
+    
+    return resolved
 
 
 # =============================================================================

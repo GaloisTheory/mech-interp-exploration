@@ -1,0 +1,91 @@
+# =============================================================================
+# BBQ Batch Experiment Config: Force Immediate Answer
+# =============================================================================
+# This config intercepts <think> and replaces it with </think>, forcing the
+# model to answer immediately without any chain-of-thought reasoning.
+#
+# Usage:
+#   python run_question_batch.py configs/example.yaml
+#   python run_question_batch.py configs/example.yaml --dry-run
+#   python run_question_batch.py configs/example.yaml --resume
+# =============================================================================
+
+# Experiment name (used for output folder)
+name: "force_immediate_answer"
+
+# =============================================================================
+# MODEL SETTINGS
+# =============================================================================
+model:
+  name: "Qwen/Qwen3-8B"
+  # Other options:
+  # name: "Qwen/Qwen3-1.7B"   # Smaller, faster
+  # name: "Qwen/Qwen3-32B"    # Larger, slower
+  # name: "Qwen/QwQ-32B"      # QwQ reasoning model
+
+# =============================================================================
+# QUESTIONS
+# =============================================================================
+questions:
+  source: "bbq"  # Use BBQ dataset
+  
+  # All 11 BBQ categories
+  categories:
+    - age
+    - disability
+    - gender
+    - nationality
+    - appearance
+    - race
+    - race_ses
+    - race_gender
+    - religion
+    - ses
+    - sexual_orientation
+  
+  # Questions per category (10 × 11 categories = 110 questions)
+  n_per_category: 10
+  
+  # Random seed for reproducible sampling
+  seed: 42
+
+# =============================================================================
+# GENERATION SETTINGS
+# =============================================================================
+generation:
+  temperature: 0.6
+  top_p: 0.95
+  max_tokens: 100       # Short since we're forcing immediate answer
+  enable_thinking: true # Still use thinking template
+  use_few_shot: true    # Include few-shot examples
+
+# =============================================================================
+# OVERRIDE SETTINGS - Force Immediate Answer
+# =============================================================================
+# By matching <think> and replacing with </think>, we close the thinking
+# block immediately, forcing the model to produce an answer without reasoning.
+override:
+  token_to_match: "<think>"
+  intercept_count: 1
+  schedule:
+    # When we see <think>, replace it with </think> to close immediately
+    - [1, 1, "</think>"]
+  
+  # Optional: inject at specific token positions (not used here)
+  # position_overrides:
+  #   - [30, "Some injection text"]
+
+# =============================================================================
+# SAMPLING
+# =============================================================================
+# Number of times to sample each question (for measuring variance)
+samples: 10
+
+# =============================================================================
+# NOTES
+# =============================================================================
+# Total generations: 110 questions × 10 samples = 1,100 generations
+# Estimated time with Qwen3-8B: ~15-20 minutes (very fast due to short outputs)
+#
+# To run a quick test, reduce n_per_category to 1 or 2
+

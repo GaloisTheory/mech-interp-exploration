@@ -27,7 +27,7 @@ from analyze_results_utils import (
 )
 
 #%% Config
-EXPERIMENT_NAME = "test_milestone1"
+EXPERIMENT_NAME = "full_11cat_merged"
 
 #%% List available experiments
 list_experiments()

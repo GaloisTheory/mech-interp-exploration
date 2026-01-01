@@ -14,13 +14,13 @@ MODEL_NAME = "Qwen/Qwen3-8B"  # Options: "Qwen/QwQ-32B", "Qwen/Qwen3-32B", "Qwen
 # =============================================================================
 
 # >>> SET THIS TO SWITCH MODES <<<
-USE_BBQ = False   # True = use BBQ question below, False = use CUSTOM_PROMPT below
+USE_BBQ = True   # True = use BBQ question below, False = use CUSTOM_PROMPT below
 
 # -----------------------------------------------------------------------------
 # BBQ Mode Settings (when USE_BBQ = True)
 # -----------------------------------------------------------------------------
-BBQ_CATEGORY = "race"  # Options: age, disability, gender, nationality, appearance, race, religion, ses, sexual_orientation
-BBQ_INDEX = 1          # Which question from the category
+BBQ_CATEGORY = "age"  # Options: age, disability, gender, nationality, appearance, race, religion, ses, sexual_orientation
+BBQ_INDEX = 3          # Which question from the category
 
 # -----------------------------------------------------------------------------
 # Custom Prompt Mode (when USE_BBQ = False)
@@ -61,12 +61,12 @@ USE_FEW_SHOT = True  # Set to False to disable few-shot examples
 # =============================================================================
 
 # Token to intercept (e.g., "</think>" or token ID like 151668)
-TOKEN_TO_MATCH = "</think>"
+TOKEN_TO_MATCH = "<think>"
 
 # Override text schedule: maps intercept ranges to different injection texts
 # Format: list of (start, end, text) tuples - intercepts from start to end (inclusive) use that text
 OVERRIDE_SCHEDULE = [
-    (1, 1, "<think>" + "The answer must be B then!" + "</think>"),
+    (1, 1, "<think>" + "The answer must be B then! "*100 + "</think>"),
     #(1, 1, "</think>"),
 ]
 

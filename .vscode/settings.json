@@ -34,6 +34,15 @@
   // File associations
   "files.associations": {
     "*.py": "python"
-  }
+  },
+  "cursorpyright.analysis.autoImportCompletions": true,
+  "cursorpyright.analysis.diagnosticMode": "workspace",
+  "cursorpyright.analysis.extraPaths": [
+    "/workspace/third_party/thinking-llms-interp",
+    "/workspace/third_party/thinking-llms-interp/hybrid",
+    "/workspace/experiments",
+    "/workspace/shared"
+  ],
+  "cursorpyright.analysis.typeCheckingMode": "basic"
 }
 

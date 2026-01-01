@@ -1,0 +1,309 @@
+# BBQ Batch Experiment Runner
+
+## Overview
+
+A batch experiment system for running BBQ (Bias Benchmark for QA) experiments with configurable models, prompts, overrides, and questions. Supports parallel execution and stores full Chain-of-Thought traces.
+
+**Location**: `experiments/exp_006_extend_thinking/bbq/batch/`
+
+---
+
+## Quick Start
+
+```bash
+cd experiments/exp_006_extend_thinking/bbq/batch
+
+# Dry run (see questions without running)
+python run_question_batch.py configs/force_immediate_answer.yaml --dry-run
+
+# Run experiment
+python run_question_batch.py configs/force_immediate_answer.yaml
+
+# Resume interrupted experiment
+python run_question_batch.py configs/force_immediate_answer.yaml --resume
+```
+
+---
+
+## Creating a Config File
+
+Configs are YAML files in `batch/configs/`. Example:
+
+```yaml
+name: "my_experiment"
+
+model:
+  name: "Qwen/Qwen3-8B"
+
+questions:
+  source: "bbq"
+  categories: ["age", "race", "gender"]  # or use single category
+  n_per_category: 10
+  seed: 42
+
+generation:
+  temperature: 0.6
+  top_p: 0.95
+  max_tokens: 2000
+  enable_thinking: true
+  use_few_shot: true
+
+override:
+  token_to_match: "</think>"  # or "<think>" for force-immediate
+  intercept_count: 0          # 0 = baseline, 1+ = extend thinking
+  schedule: []                # Override text per intercept
+
+samples: 10  # Resamples per question
+```
+
+### Override Examples
+
+**Baseline (no intervention):**
+```yaml
+override:
+  token_to_match: "</think>"
+  intercept_count: 0
+  schedule: []
+```
+
+**Force Immediate Answer (skip thinking):**
+```yaml
+override:
+  token_to_match: "<think>"
+  intercept_count: 1
+  schedule:
+    - [1, 1, "</think>"]  # Replace <think> with </think>
+```
+
+**Extended Thinking (1x):**
+```yaml
+override:
+  token_to_match: "</think>"
+  intercept_count: 1
+  schedule:
+    - [1, 1, "\n\nWait, let me reconsider..."]
+```
+
+---
+
+## Running Parallel Experiments
+
+For large experiments, split by category and run in parallel:
+
+```bash
+# Create per-category configs
+for cat in age disability gender race; do
+  cat > configs/baseline_${cat}.yaml << EOF
+name: "baseline_${cat}"
+model:
+  name: "Qwen/Qwen3-8B"
+questions:
+  source: "bbq"
+  categories: ["${cat}"]
+  n_per_category: 10
+  seed: 42
+generation:
+  max_tokens: 2000
+  # ... other settings
+override:
+  intercept_count: 0
+  schedule: []
+samples: 10
+EOF
+done
+
+# Run in parallel (adjust count based on GPU memory)
+for cat in age disability gender; do
+  python run_question_batch.py configs/baseline_${cat}.yaml \
+    > outputs/baseline_${cat}.log 2>&1 &
+done
+```
+
+**Memory Guidelines** (Qwen3-8B):
+- Each process: ~16GB VRAM
+- 183GB GPU: ~9-10 parallel processes max
+- Recommended: 3-6 parallel to avoid OOM
+
+---
+
+## Output Structure
+
+```
+batch/outputs/{name}_{timestamp}/
+├── results_{timestamp}.json  # Full results with CoT
+├── config.yaml               # Copy of experiment config
+└── checkpoint.json           # For resumability (deleted on completion)
+```
+
+### Results Format
+
+```json
+{
+  "config": { ... },
+  "results": [
+    {
+      "question_idx": 0,
+      "category": "age",
+      "context": "...",
+      "question": "...",
+      "choices": ["A", "B", "C"],
+      "correct_answer": "C",
+      "accuracy": 0.9,
+      "answer_distribution": {"A": 1, "C": 9},
+      "samples": [
+        {
+          "sample_idx": 0,
+          "answer": "C",
+          "correct": true,
+          "tokens": 342,
+          "time_s": 8.2,
+          "full_output": "<think>...</think>\n\nC"
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "total_questions": 110,
+    "total_samples": 1100,
+    "overall_accuracy": 0.907,
+    "by_category": {"age": 0.85, ...}
+  }
+}
+```
+
+---
+
+## Analyzing Results
+
+Open `analyze_batch.py` in VS Code/Cursor and run cells interactively with `#%%`.
+
+### Files
+
+| File | Purpose |
+|------|---------|
+| `analyze_batch.py` | Interactive cells for exploration |
+| `analyze_batch_utils.py` | Analysis functions (imported by above) |
+| `batch_utils.py` | Core data loading utilities |
+
+### Basic Exploration
+
+```python
+#%% List and load experiments
+list_batch_experiments()
+exp = load_batch_experiment("force_immediate")  # by name or index
+
+#%% Summary and inspect
+print_batch_summary(exp)
+inspect_question(exp, question_idx=0)
+show_cot(exp, question_idx=0, sample_idx=0)
+
+#%% Find wrong answers
+wrong = filter_wrong_samples(exp)
+show_cot(exp, wrong[0]['question_idx'], wrong[0]['sample_idx'])
+```
+
+### Comparing Experiments
+
+```python
+#%% Load baseline (combines all 11 category experiments)
+baseline = load_baseline_combined(load_batch_experiment)
+force_immediate = load_batch_experiment('force_immediate')
+
+#%% Comparison table (by sample accuracy)
+comparison_table({'Baseline': baseline, 'ForceImm': force_immediate})
+
+#%% Detailed table (by question AND by sample)
+detailed_comparison_table({'Baseline': baseline, 'ForceImm': force_immediate})
+```
+
+### Accuracy Metrics
+
+| Metric | Definition |
+|--------|------------|
+| **By Question** | % of questions where majority answer is correct (ties = incorrect) |
+| **By Sample** | % of individual samples correct |
+
+```python
+#%% Get both metrics
+stats = accuracy_by_question(exp)
+print(f"By question: {stats['overall_by_question']:.1%}")
+print(f"By sample: {stats['overall_by_sample']:.1%}")
+```
+
+### Finding Divergent Questions
+
+Find cases where one experiment is correct and another is wrong:
+
+```python
+#%% Find divergent questions
+divergent = find_divergent_questions(baseline, force_immediate, "Baseline", "ForceImm")
+
+print(f"Baseline better: {len(divergent['Baseline_better'])}")
+print(f"ForceImm better: {len(divergent['ForceImm_better'])}")
+
+#%% Inspect a divergent question with full CoT
+show_divergent_question(
+    divergent['Baseline_better'][0],
+    idx=0,
+    exp1=baseline,
+    exp2=force_immediate,
+    name1="Baseline",
+    name2="ForceImm"
+)
+```
+
+### Available Functions
+
+**From `batch_utils.py`:**
+- `list_batch_experiments()` - List available experiments
+- `load_batch_experiment(name)` - Load by name/index
+- `print_batch_summary(exp)` - Print summary stats
+- `inspect_question(exp, idx)` - Show question details
+- `show_cot(exp, q_idx, s_idx)` - Show full CoT
+- `filter_wrong_samples(exp)` - Get wrong answers
+- `accuracy_by_category(exp)` - Category breakdown
+
+**From `analyze_batch_utils.py`:**
+- `load_baseline_combined(load_fn)` - Merge all baseline experiments
+- `comparison_table(exps)` - By-sample comparison
+- `detailed_comparison_table(exps)` - Question + sample comparison
+- `accuracy_by_question(exp)` - Compute both metrics
+- `find_divergent_questions(exp1, exp2)` - Find disagreements
+- `show_divergent_question(...)` - Display with CoT
+
+---
+
+## BBQ Categories
+
+Available categories (use exact names in config):
+- `age`
+- `disability`
+- `gender`
+- `nationality`
+- `appearance`
+- `race`
+- `race_ses`
+- `race_gender`
+- `religion`
+- `ses`
+- `sexual_orientation`
+
+---
+
+## Files
+
+| File | Purpose |
+|------|---------|
+| `run_question_batch.py` | Main experiment runner |
+| `batch_utils.py` | Config loading, checkpointing, basic analysis |
+| `analyze_batch_utils.py` | Comparison tables, divergent questions, metrics |
+| `analyze_batch.py` | Interactive analysis with #%% cells |
+| `configs/*.yaml` | Experiment configurations |
+| `outputs/` | Results organized by experiment |
+
+---
+
+## Related
+
+- `008-bbq-interactive-playground.mdc` - Interactive single-question testing
+- `experiments/exp_006_extend_thinking/shared/generation.py` - Core generation logic

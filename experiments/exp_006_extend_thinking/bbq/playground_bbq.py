@@ -69,8 +69,8 @@ print(f"Model loaded on {model.device}")
 
 # Prompt settings - Option A: Use BBQ question
 USE_BBQ = True
-BBQ_CATEGORY = "race"  # Options: age, disability, gender, nationality, appearance, race, religion, ses, sexual_orientation
-BBQ_INDEX = 1         # Which question from the category
+BBQ_CATEGORY = "age"  # Options: age, disability, gender, nationality, appearance, race, religion, ses, sexual_orientation
+BBQ_INDEX = 3         # Which question from the category
 
 # Prompt settings - Option B: Custom prompt (set USE_BBQ=False to use this)
 CUSTOM_PROMPT = """In a city, 95% of cabs are Green and 5% are Blue. A witness identifies a cab in a hit-and-run as Blue. Tests show witnesses correctly identify cab color 80% of the time. What's the probability the cab was actually Blue?
@@ -109,7 +109,7 @@ def get_override_for_intercept(intercept_num: int) -> str:
     return "\n\nWait, let me reconsider..."
 
 MAX_TOKENS = 1000      # Max tokens to generate after override
-INTERCEPT_COUNT = 1    # How many times to intercept (0 = no override, just generate)
+INTERCEPT_COUNT = 0    # How many times to intercept (0 = no override, just generate)
 
 # Token-count based overrides (inject at specific token positions)
 # Format: list of (token_position, text) tuples

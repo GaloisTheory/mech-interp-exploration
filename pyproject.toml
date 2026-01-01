@@ -21,7 +21,7 @@ dependencies = [
     "einops>=0.8.0",
     "fancy-einsum>=0.0.3",
     "jaxtyping>=0.3.0",
-    "transformers>=4.47.0,<4.50.0",  # 4.50+ has breaking changes
+    "transformers>=4.47.0",  # Updated to allow >=4.51 for transformer-lens compatibility
     "hf-transfer>=0.1.9",
     
     # ============================================================

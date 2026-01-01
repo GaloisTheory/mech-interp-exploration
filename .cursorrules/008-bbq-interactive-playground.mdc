@@ -1,0 +1,181 @@
+# BBQ Interactive Playground
+
+## Overview
+
+An interactive playground for fast iteration on BBQ (Bias Benchmark for QA) experiments with token-level interventions. The key innovation is a **hot-reload pattern** that keeps the model in GPU memory while allowing config changes between runs.
+
+**Location**: `experiments/exp_006_extend_thinking/bbq/interactive/`
+
+---
+
+## Problem Solved
+
+The original `playground_bbq.py` used Jupyter-style `#%%` cells, but:
+- Interactive Jupyter in Cursor was unreliable
+- Running the full script reloaded the model each time (~1 min)
+- Config was scattered throughout the file
+
+**Solution**: Separate config into a hot-reloadable Python file, with an interactive loop that reloads config on each Enter keypress.
+
+---
+
+## Files Created
+
+```
+experiments/exp_006_extend_thinking/bbq/interactive/
+├── __init__.py
+├── config.py      # All experiment settings (hot-reloadable)
+└── playground.py  # Model loading + interactive loop
+```
+
+---
+
+## Key Design: Hot-Reload Pattern
+
+```python
+# In playground.py
+import config as cfg
+
+# Model loads ONCE at startup
+model = AutoModelForCausalLM.from_pretrained(cfg.MODEL_NAME, ...)
+
+# Interactive loop
+while True:
+    importlib.reload(cfg)  # Hot-reload config.py
+    run(cfg)               # Run generation with new config
+    input("Press Enter to re-run...")
+```
+
+**Benefits**:
+- Model stays in GPU memory
+- Edit `config.py` in another tab
+- Press Enter to run with new settings
+- ~0.1s per iteration instead of ~60s
+
+---
+
+## Configuration Options (config.py)
+
+### Prompt Mode
+```python
+USE_BBQ = True   # True = BBQ question, False = custom prompt
+
+# BBQ settings
+BBQ_CATEGORY = "race"   # age, disability, gender, nationality, appearance, race, religion, ses, sexual_orientation
+BBQ_INDEX = 1
+
+# Custom prompt (when USE_BBQ = False)
+CUSTOM_PROMPT = """Your custom question here..."""
+```
+
+### Override Settings
+```python
+TOKEN_TO_MATCH = "</think>"  # Token to intercept
+
+OVERRIDE_SCHEDULE = [
+    (1, 1, "\n\nWait, let me reconsider..."),  # Intercepts 1-1 use this text
+    (2, 5, "\n\nActually, thinking more..."),   # Intercepts 2-5 use this text
+]
+
+INTERCEPT_COUNT = 1  # How many times to intercept (0 = no override)
+```
+
+### Sampling
+```python
+NUM_SAMPLES = 10     # Run N times to see variance
+TEMPERATURE = 0.6
+TOP_P = 0.95
+MAX_TOKENS = 1000
+```
+
+---
+
+## Usage
+
+```bash
+cd experiments/exp_006_extend_thinking/bbq/interactive
+python playground.py
+
+# Model loads once...
+# Generation runs...
+# "Press Enter to re-run..."
+# 
+# [Edit config.py in another tab]
+# [Press Enter]
+# Generation runs with new config!
+# Ctrl+C to exit
+```
+
+---
+
+## Output Format
+
+### Single Sample
+```
+Answer: B | Tokens: 342 | Time: 8.2s (41.7 tok/s)
+Correct: B | ✓
+```
+
+### Multiple Samples (NUM_SAMPLES > 1)
+```
+--- Sample 1 ---
+Answer: B | Tokens: 342 | Time: 8.2s (41.7 tok/s)
+Correct: B | ✓
+
+--- Sample 2 ---
+Answer: A | Tokens: 298 | Time: 7.1s (42.0 tok/s)
+Correct: B | ✗
+
+------------------------------------------------------------
+SUMMARY
+------------------------------------------------------------
+Answer distribution: {'B': 8, 'A': 2}
+Accuracy: 8/10 (80.0%)
+Timing: 75.3s total | 7.5s avg | 41.2 tok/s avg
+```
+
+---
+
+## Performance Estimates
+
+| Model | VRAM | Speed |
+|-------|------|-------|
+| Qwen3-8B | ~16GB | ~140 tok/s |
+| Qwen3-32B | ~64GB | ~40 tok/s |
+| QwQ-32B | ~64GB | ~40 tok/s |
+
+### Scaling Estimates
+
+For 5,000 generations (100 questions × 5 settings × 10 resamples):
+
+| Scenario | Time |
+|----------|------|
+| Sequential (1 GPU) | ~8 min |
+| 8x parallel (183GB GPU) | ~1 min |
+
+**Note**: Estimates assume short samples (~15 tokens). Long reasoning traces (500+ tokens) multiply these times.
+
+---
+
+## Related Files
+
+| File | Purpose |
+|------|---------|
+| `playground_bbq.py` | Original Jupyter-cell-style script |
+| `shared/generation.py` | Core `generate_with_custom_override()` function |
+| `shared/config.py` | Shared model configs, prompt templates |
+| `data/bbq_dataset.py` | BBQ data loading, `BBQItem` dataclass |
+| `constants.py` | Few-shot examples |
+
+---
+
+## Extending This Pattern
+
+This hot-reload pattern can be adapted for other experiments:
+
+1. Create `config.py` with all tuneable parameters
+2. Load heavy resources (model, data) once at startup
+3. Wrap experiment logic in a `run(cfg)` function
+4. Add `importlib.reload(cfg)` + input loop
+
+Works well for any experiment where you want to iterate on hyperparameters without reloading the model.

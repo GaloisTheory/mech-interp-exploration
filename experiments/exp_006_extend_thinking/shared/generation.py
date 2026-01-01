@@ -7,7 +7,7 @@ import gc
 import re
 import torch
 import torch.nn.functional as F
-from typing import Dict, List, Literal, Union
+from typing import Callable, Dict, List, Literal, Union
 from dataclasses import dataclass
 from tqdm import tqdm
 
@@ -732,7 +732,7 @@ def generate_with_custom_override(
     tokenizer,
     prompt: str,
     token_to_match: Union[str, int],
-    override_text: str,
+    override_text: Union[str, Callable[[int], str]],
     max_tokens: int = 2000,
     intercept_count: int = 1,
     temperature: float = 0.6,
@@ -740,6 +740,7 @@ def generate_with_custom_override(
     streaming: bool = False,
     model_name: str = None,
     enable_thinking: bool = True,
+    token_position_overrides: List[tuple] = None,
 ) -> GenerationResult:
     """
     Generate with custom token override for interactive experimentation.
@@ -749,7 +750,9 @@ def generate_with_custom_override(
         tokenizer: Tokenizer
         prompt: Input prompt
         token_to_match: Token string (e.g., "</think>") or token ID to intercept
-        override_text: Text to inject when token is matched
+        override_text: Text to inject when token is matched. Can be:
+                      - A string (same text for all intercepts)
+                      - A callable(intercept_num: int) -> str (different text per intercept)
         max_tokens: Maximum tokens to generate
         intercept_count: How many times to intercept (0 = no override)
         temperature: Sampling temperature
@@ -757,6 +760,7 @@ def generate_with_custom_override(
         streaming: If True, print tokens as generated
         model_name: Model name for token ID lookup
         enable_thinking: If True, use chat template with thinking mode enabled (for Qwen3)
+        token_position_overrides: List of (token_position, text) tuples to inject at specific token counts
     
     Returns:
         GenerationResult with full output, extracted answer, and metadata
@@ -776,10 +780,24 @@ def generate_with_custom_override(
     else:
         match_token_id = token_to_match
     
+    # Check if override_text is callable (for per-intercept customization)
+    override_is_callable = callable(override_text)
+    
+    # Prepare token position overrides
+    position_overrides = {}
+    if token_position_overrides:
+        for pos, text in token_position_overrides:
+            position_overrides[pos] = text
+    
     print(f"[Config] Token to match: {token_to_match} (ID: {match_token_id})")
-    print(f"[Config] Override text: {override_text[:50]}...")
+    if override_is_callable:
+        print(f"[Config] Override text: <dynamic per intercept>")
+    else:
+        print(f"[Config] Override text: {override_text[:50]}...")
     print(f"[Config] Intercept count: {intercept_count}")
     print(f"[Config] Enable thinking: {enable_thinking}")
+    if position_overrides:
+        print(f"[Config] Token position overrides at: {sorted(position_overrides.keys())}")
     print()
     
     # Get underlying HuggingFace model
@@ -838,13 +856,16 @@ def generate_with_custom_override(
             
             if encounters <= intercept_count:
                 # INTERCEPT: inject override text
+                # Get the text for this intercept (call function if callable)
+                current_override = override_text(encounters) if override_is_callable else override_text
+                
                 if streaming:
-                    print(f">>> [INJECTING OVERRIDE TEXT]")
-                    print(f">>> {override_text}")
+                    print(f">>> [INJECTING OVERRIDE TEXT (intercept #{encounters})]")
+                    print(f">>> {current_override}")
                     print()
                 
                 override_ids = tokenizer.encode(
-                    override_text,
+                    current_override,
                     add_special_tokens=False,
                     return_tensors="pt"
                 ).to(device)
@@ -876,6 +897,34 @@ def generate_with_custom_override(
             print(token_str, end="", flush=True)
         
         input_ids = torch.tensor([[next_token_id]], device=device)
+        
+        # Check for token position override
+        current_token_count = len(generated_ids)
+        if current_token_count in position_overrides:
+            pos_override_text = position_overrides[current_token_count]
+            
+            if streaming:
+                print(f"\n\n>>> [TOKEN POSITION OVERRIDE at {current_token_count} tokens]")
+                print(f">>> {pos_override_text}")
+                print()
+            
+            pos_override_ids = tokenizer.encode(
+                pos_override_text,
+                add_special_tokens=False,
+                return_tensors="pt"
+            ).to(device)
+            
+            generated_ids.extend(pos_override_ids[0].tolist())
+            
+            # Process override through model
+            with torch.no_grad():
+                pos_override_outputs = hf_model(
+                    input_ids=pos_override_ids,
+                    past_key_values=past_key_values,
+                    use_cache=True,
+                )
+            past_key_values = pos_override_outputs.past_key_values
+            input_ids = pos_override_ids[:, -1:]
     
     if streaming:
         print("\n" + "=" * 60)

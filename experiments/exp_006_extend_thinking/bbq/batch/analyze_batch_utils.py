@@ -406,27 +406,73 @@ def load_baseline_combined(load_fn, categories: List[str] = None, prefix: str = 
     Returns:
         Combined experiment dict with all results merged
     """
+    import os
+    import re
+    from glob import glob
+    
     if categories is None:
         categories = ['age', 'disability', 'gender', 'nationality', 'appearance', 
                       'race', 'race_ses', 'race_gender', 'religion', 'ses', 'sexual_orientation']
     
     baseline_combined = {'results': [], 'summary': {'by_category': {}}}
     
+    # Get output directory from load_fn module
+    # Assume load_fn is from batch_utils which has OUTPUT_DIR
+    import batch_utils
+    output_dir = batch_utils.OUTPUT_DIR
+    
     for cat in categories:
         try:
-            # Build experiment name with optional prefix
+            # Build experiment name pattern with optional prefix
+            # Use regex to match exact category name followed by underscore and timestamp
             if prefix:
-                exp_name = f'{prefix}_baseline_{cat}'
+                pattern = f'{prefix}_baseline_{cat}_[0-9]+'
             else:
-                exp_name = f'baseline_{cat}'
+                pattern = f'baseline_{cat}_[0-9]+'
             
-            exp = load_fn(exp_name)
+            # Find matching folders
+            if not os.path.exists(output_dir):
+                continue
+                
+            folders = [f for f in os.listdir(output_dir) 
+                      if os.path.isdir(os.path.join(output_dir, f))]
+            
+            matching_folders = [f for f in folders if re.match(pattern, f)]
+            
+            if not matching_folders:
+                continue
+            
+            # Use most recent matching folder
+            matching_folders = sorted(matching_folders, 
+                                    key=lambda f: os.path.getmtime(os.path.join(output_dir, f)), 
+                                    reverse=True)
+            folder = matching_folders[0]
+            
+            # Load directly instead of using load_fn to avoid substring issues
+            folder_path = os.path.join(output_dir, folder)
+            results_files = glob(os.path.join(folder_path, "results_*.json"))
+            
+            if not results_files:
+                continue
+                
+            results_file = max(results_files, key=os.path.getmtime)
+            
+            import json
+            with open(results_file, 'r') as f:
+                exp = json.load(f)
+            
+            print(f"✓ Loaded: {folder}")
+            print(f"  Questions: {exp.get('summary', {}).get('total_questions', '?')}")
+            print(f"  Samples: {exp.get('summary', {}).get('total_samples', '?')}")
+            print(f"  Accuracy: {exp.get('summary', {}).get('overall_accuracy', 0):.1%}")
+            
             if exp and exp.get('results'):
                 baseline_combined['results'].extend(exp['results'])
                 baseline_combined['summary']['by_category'].update(
                     exp.get('summary', {}).get('by_category', {})
                 )
-        except:
+        except Exception as e:
+            print(f"⚠ Error loading {cat}: {e}")
             pass
     
     # Compute overall accuracy

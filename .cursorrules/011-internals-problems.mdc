@@ -1,0 +1,176 @@
+# Blank Spaces Phenomenon in Extended Thinking
+
+## Overview
+
+When injecting blank spaces into the `<think>...</think>` tags of a Qwen3 model, **accuracy on BBQ questions increases with the number of blank spaces** — a counterintuitive finding that suggests the model uses positional/temporal information rather than semantic content.
+
+**Location**: `experiments/exp_006_extend_thinking/bbq/interactive/blank_vs_accuracy.py`
+
+---
+
+## The Phenomenon
+
+### Setup
+- **Model**: Qwen/Qwen3-8B
+- **Task**: BBQ (Bias Benchmark for QA) multiple-choice questions
+- **Override**: Intercept `<think>` token and inject `<think>` + `" "*N` + `</think>`
+- **Effect**: Forces model to "think" for N blank spaces before answering
+
+### Config (bbq/interactive/config.py:69)
+```python
+OVERRIDE_SCHEDULE = [
+    (1, 1, "<think>" + " "*N + "</think>"),
+]
+```
+
+### Observation
+As N increases from 0 to ~100, accuracy on certain BBQ questions **improves significantly**.
+
+This is unexpected because:
+1. Blank spaces contain **no semantic information**
+2. The model should have the same knowledge regardless of blank count
+3. More tokens typically means more compute, but not more reasoning content
+
+---
+
+## Hypotheses
+
+### H1: Positional Encoding Effect
+The model may have learned during training that:
+- Longer `<think>` sections correlate with harder problems requiring more careful answers
+- The positional encoding at the answer token carries implicit information about "thinking duration"
+- This could be a training artifact: CoT examples with more tokens tend to be more thorough
+
+### H2: Attention Dilution
+With more tokens in the thinking section:
+- Attention to the (empty) thinking content is diluted across more positions
+- More attention budget flows to the question/context instead
+- This could reduce bias from any pre-existing attention patterns
+
+### H3: Layer-wise Processing Dynamics
+The model may need a minimum number of forward passes / positional steps to:
+- Fully process the question through all layers
+- Allow "slow thinking" — where deeper layers complete reasoning started in earlier layers
+- The residual stream needs time to "settle" on an answer
+
+### H4: Token Position Calibration
+- Answer confidence may be calibrated to token position
+- The model expects to answer after ~300 tokens of thinking (median baseline)
+- Answering too early (few blanks) may produce under-confident or biased answers
+
+---
+
+## Implications for Faithfulness Research
+
+This phenomenon is **problematic** for studying chain-of-thought faithfulness:
+
+### 1. Token Count Confound
+When manipulating CoT content, accuracy changes could be partially explained by token count changes, not semantic content changes.
+
+**Example**: If we replace "Let me think step by step..." (10 tokens) with "The answer is A!" (5 tokens), any accuracy drop could be:
+- Due to misleading content (what we want to measure)
+- Due to fewer tokens (confound)
+
+### 2. Baseline Challenge
+What's the "right" baseline for comparing manipulated vs. natural CoT?
+- Same content? (unfair — natural CoT is tailored to the question)
+- Same token count? (artificially pads manipulated CoT)
+- Same information content? (hard to define)
+
+### 3. Token vs. Content Disentanglement
+Need to separate:
+- **Effect of CoT length** (token count, positional info)
+- **Effect of CoT content** (what's actually being said)
+
+**Proposed control**: For every content manipulation experiment, run a corresponding "padded blank" control with the same token count.
+
+---
+
+## Analysis Script
+
+### blank_vs_accuracy.py
+
+Systematic sweep of blank space counts to measure accuracy:
+
+```bash
+cd experiments/exp_006_extend_thinking/bbq/interactive
+python blank_vs_accuracy.py
+```
+
+**Configuration**:
+- Blank counts: `[0, 5, 10, 15, ..., 95, 100]` (21 data points)
+- 100 samples per setting
+- Uses current BBQ question from config.py
+
+**Output**:
+- Graph: `bbq/results_graphs/blank_vs_accuracy.png`
+- Console: Accuracy summary table
+
+### Expected Runtime
+- 21 settings × 100 samples = 2,100 generations
+- At ~40 tok/s: approximately 15-20 minutes total (mostly prompt encoding)
+
+---
+
+## Next Steps
+
+### Immediate Analysis
+- [x] Create sweep script (blank_vs_accuracy.py)
+- [ ] Run 100 samples per setting on BBQ appearance #1
+- [ ] Generate accuracy vs. blank count graph
+- [ ] Identify the "critical zone" where accuracy changes most
+
+### Internals Analysis (logit_lens.py)
+- [ ] Visualize P(A), P(B), P(C) evolution across blank positions
+- [ ] Compare layer-wise representations at final position for different blank counts
+- [ ] Check if "correct answer" signal emerges gradually or suddenly
+- [ ] Identify which layers show the most change with blank count
+
+### Control Experiments
+- [ ] Try with other neutral tokens (e.g., "..." or "hmm" repeated)
+- [ ] Test on different BBQ categories/questions
+- [ ] Test on non-BBQ tasks (math, logic) to see if effect generalizes
+- [ ] Compare with actual reasoning of same token count
+
+---
+
+## Related Observations
+
+From prior experiments (010-cot-insertion):
+
+### Blank Spaces Don't Hurt
+- Static blank experiments (5-500 spaces) maintain ~90-93% accuracy
+- This is only slightly below full CoT baseline (~95%)
+- The model can answer correctly without explicit reasoning content
+
+### Incorrect Answer Paradox
+- Single incorrect suggestion ("The answer is A!") → 42% accuracy
+- 12 repetitions of same suggestion → 70% accuracy
+- Model may detect something is "off" with excessive repetition
+- **Possible connection**: More tokens help even when content is harmful
+
+---
+
+## Files
+
+| File | Purpose |
+|------|---------|
+| `bbq/interactive/blank_vs_accuracy.py` | Sweep script for blank count analysis |
+| `bbq/interactive/config.py:69` | Config with blank space override |
+| `bbq/results_graphs/blank_vs_accuracy.png` | Output graph |
+| `internals/logit_lens.py` | Tool for layer-wise representation analysis |
+| `internals/config.py` | Config for logit lens analysis |
+
+---
+
+## Theoretical Connection
+
+This phenomenon may relate to:
+
+1. **Implicit CoT**: Models may perform reasoning in the residual stream without externalizing it (Nostalgebraist, Anthropic)
+
+2. **Position-dependent behavior**: Transformer behavior depends heavily on absolute/relative position, not just content
+
+3. **Training distribution**: If training CoTs are typically 100-500 tokens, the model may have learned position-dependent answer strategies
+
+4. **Attention sink**: Early blank tokens may serve as "attention sinks" (Xiao et al.), changing how later attention is allocated

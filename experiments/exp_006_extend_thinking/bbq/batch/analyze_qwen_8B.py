@@ -18,9 +18,9 @@ import pandas as pd
 import numpy as np
 
 # Configuration
-SAVE_FIGURES = False  # Toggle to save outputs
-OUTPUT_DIR = '/workspace/experiments/exp_006_extend_thinking/bbq/batch/outputs'
-
+SAVE_FIGURES = True  # Toggle to save outputs
+OUTPUT_DIR = '/workspace/experiments/exp_006_extend_thinking/bbq/batch/outputs/qwen_8B_graphs'
+# %%
 # Setup paths
 _batch_dir = '/workspace/experiments/exp_006_extend_thinking/bbq/batch'
 _bbq_dir = os.path.dirname(_batch_dir)
@@ -52,34 +52,55 @@ load_batch_experiment = batch_utils.load_batch_experiment
 load_baseline_combined = analyze_utils.load_baseline_combined
 accuracy_by_question = analyze_utils.accuracy_by_question
 
+# Custom loader for 8B - excludes qwen_* prefixed folders to avoid loading wrong model's results
+import json
+from glob import glob
+_output_dir = os.path.join(_batch_dir, 'outputs')
+
+def load_8B_experiment(name):
+    """Load 8B experiment - explicitly exclude qwen_* prefixed folders."""
+    folders = [f for f in os.listdir(_output_dir) if os.path.isdir(os.path.join(_output_dir, f))]
+    # Filter: must contain name, must NOT start with qwen_
+    matches = [f for f in folders if name.lower() in f.lower() and not f.startswith('qwen_')]
+    if not matches:
+        return None
+    # Sort by modification time, get most recent
+    matches.sort(key=lambda f: os.path.getmtime(os.path.join(_output_dir, f)), reverse=True)
+    folder_path = os.path.join(_output_dir, matches[0])
+    results_files = glob(os.path.join(folder_path, "results_*.json"))
+    if not results_files:
+        return None
+    with open(max(results_files, key=os.path.getmtime), 'r') as f:
+        return json.load(f)
+
 print("✓ Imports loaded successfully")
 
 #%% Load All Experiments
 print("Loading all experiments...")
 
-# Baselines
-cot = load_baseline_combined(load_batch_experiment)
-nocot = load_batch_experiment('force_immediate')
+# Baselines (use load_8B_experiment to exclude qwen_* prefixed folders)
+cot = load_baseline_combined(load_batch_experiment)  # This already handles prefix=None correctly
+nocot = load_8B_experiment('force_immediate')
 
 # Blank space experiments (static)
 blank_static = {}
 blank_static_values = [5, 10, 50, 100, 500]
 for n in blank_static_values:
-    exp = load_batch_experiment(f'blank_static_{n}_')
+    exp = load_8B_experiment(f'blank_static_{n}_')
     if exp:
         blank_static[n] = exp
 
 # Blank space experiments (dynamic median)
 blank_median = {}
 for mult in [1, 2, 5]:
-    exp = load_batch_experiment(f'blank_dynamic_median_{mult}x_')
+    exp = load_8B_experiment(f'blank_dynamic_median_{mult}x_')
     if exp:
         blank_median[mult] = exp
 
 # Blank space experiments (dynamic max)
 blank_max = {}
 for mult in [1, 2, 5]:
-    exp = load_batch_experiment(f'blank_dynamic_max_{mult}x_')
+    exp = load_8B_experiment(f'blank_dynamic_max_{mult}x_')
     if exp:
         blank_max[mult] = exp
 
@@ -87,21 +108,21 @@ for mult in [1, 2, 5]:
 incorrect_static = {}
 incorrect_static_values = [1, 2, 6, 12, 62]
 for n in incorrect_static_values:
-    exp = load_batch_experiment(f'incorrect_answer_{n}_')
+    exp = load_8B_experiment(f'incorrect_answer_{n}_')
     if exp:
         incorrect_static[n] = exp
 
 # Incorrect answer experiments (dynamic median)
 incorrect_median = {}
 for mult in [1, 2, 5]:
-    exp = load_batch_experiment(f'incorrect_dynamic_median_{mult}x_')
+    exp = load_8B_experiment(f'incorrect_dynamic_median_{mult}x_')
     if exp:
         incorrect_median[mult] = exp
 
 # Incorrect answer experiments (dynamic max)
 incorrect_max = {}
 for mult in [1, 2, 5]:
-    exp = load_batch_experiment(f'incorrect_dynamic_max_{mult}x_')
+    exp = load_8B_experiment(f'incorrect_dynamic_max_{mult}x_')
     if exp:
         incorrect_max[mult] = exp
 
@@ -251,6 +272,7 @@ for i in range(1, len(df_summary) + 1):
 plt.tight_layout()
 
 if SAVE_FIGURES:
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
     save_path = os.path.join(OUTPUT_DIR, 'qwen_8B_summary_table.png')
     plt.savefig(save_path, dpi=150, bbox_inches='tight', facecolor='white')
     print(f"✓ Saved: {save_path}")
@@ -659,3 +681,5 @@ fig_question = plot_accuracy_grid(accuracy_type='question', save=SAVE_FIGURES)
 if SAVE_FIGURES:
     print("\n✓ All figures saved to:", OUTPUT_DIR)
 
+
+# %%

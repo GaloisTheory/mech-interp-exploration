@@ -880,7 +880,24 @@ def generate_with_custom_override(
                         use_cache=True,
                     )
                 past_key_values = override_outputs.past_key_values
-                input_ids = override_ids[:, -1:]
+                
+                # FIX: Sample next token from override output logits
+                # (Previously set input_ids = override_ids[:, -1:] which caused
+                # the last override token to be processed TWICE, corrupting KV cache)
+                next_logits = override_outputs.logits[0, -1, :]
+                next_token_id = sample_token(next_logits, temperature, top_p)
+                
+                # Check EOS
+                if next_token_id == tokenizer.eos_token_id:
+                    if streaming:
+                        print("\n[EOS]")
+                    break
+                
+                generated_ids.append(next_token_id)
+                if streaming:
+                    print(tokenizer.decode([next_token_id]), end="", flush=True)
+                
+                input_ids = torch.tensor([[next_token_id]], device=device)
                 continue
             else:
                 # No more intercepts - add the matched token normally
@@ -924,7 +941,24 @@ def generate_with_custom_override(
                     use_cache=True,
                 )
             past_key_values = pos_override_outputs.past_key_values
-            input_ids = pos_override_ids[:, -1:]
+            
+            # FIX: Sample next token from override output logits
+            # (Previously set input_ids = pos_override_ids[:, -1:] which caused
+            # the last override token to be processed TWICE, corrupting KV cache)
+            pos_next_logits = pos_override_outputs.logits[0, -1, :]
+            pos_next_token_id = sample_token(pos_next_logits, temperature, top_p)
+            
+            # Check EOS
+            if pos_next_token_id == tokenizer.eos_token_id:
+                if streaming:
+                    print("\n[EOS]")
+                break
+            
+            generated_ids.append(pos_next_token_id)
+            if streaming:
+                print(tokenizer.decode([pos_next_token_id]), end="", flush=True)
+            
+            input_ids = torch.tensor([[pos_next_token_id]], device=device)
     
     if streaming:
         print("\n" + "=" * 60)

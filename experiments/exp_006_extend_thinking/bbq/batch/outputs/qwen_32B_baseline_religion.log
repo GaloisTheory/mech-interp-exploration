@@ -1,0 +1,555 @@
+============================================================
+BBQ BATCH EXPERIMENT
+============================================================
+
+Experiment: qwen_32B_baseline_religion
+Config: /workspace/experiments/exp_006_extend_thinking/bbq/batch/configs/baseline_religion.yaml
+Model override: Qwen/Qwen3-32B
+
+------------------------------------------------------------
+LOADING QUESTIONS
+------------------------------------------------------------
+Loaded 10 BBQ questions from 1 categories
+
+------------------------------------------------------------
+LOADING MODEL
+------------------------------------------------------------
+Loading: Qwen/Qwen3-32B
+This may take a minute...
+`torch_dtype` is deprecated! Use `dtype` instead!
+Loading checkpoint shards:   0%|          | 0/17 [00:00<?, ?it/s]Loading checkpoint shards:   6%|▌         | 1/17 [00:00<00:14,  1.12it/s]Loading checkpoint shards:  12%|█▏        | 2/17 [00:01<00:12,  1.23it/s]Loading checkpoint shards:  18%|█▊        | 3/17 [00:13<01:24,  6.00s/it]Loading checkpoint shards:  24%|██▎       | 4/17 [00:36<02:44, 12.67s/it]Loading checkpoint shards:  29%|██▉       | 5/17 [00:59<03:15, 16.28s/it]Loading checkpoint shards:  35%|███▌      | 6/17 [01:23<03:26, 18.80s/it]Loading checkpoint shards:  41%|████      | 7/17 [01:47<03:25, 20.55s/it]Loading checkpoint shards:  47%|████▋     | 8/17 [02:11<03:16, 21.79s/it]Loading checkpoint shards:  53%|█████▎    | 9/17 [02:35<02:58, 22.30s/it]Loading checkpoint shards:  59%|█████▉    | 10/17 [03:02<02:46, 23.85s/it]Loading checkpoint shards:  65%|██████▍   | 11/17 [03:25<02:20, 23.49s/it]Loading checkpoint shards:  71%|███████   | 12/17 [03:47<01:55, 23.14s/it]Loading checkpoint shards:  76%|███████▋  | 13/17 [04:12<01:35, 23.86s/it]Loading checkpoint shards:  82%|████████▏ | 14/17 [04:41<01:15, 25.20s/it]Loading checkpoint shards:  88%|████████▊ | 15/17 [05:10<00:52, 26.34s/it]Loading checkpoint shards:  94%|█████████▍| 16/17 [05:36<00:26, 26.18s/it]Loading checkpoint shards: 100%|██████████| 17/17 [05:57<00:00, 24.71s/it]Loading checkpoint shards: 100%|██████████| 17/17 [05:57<00:00, 21.02s/it]
+Model loaded on cuda:0
+
+------------------------------------------------------------
+GENERATION CONFIG
+------------------------------------------------------------
+Temperature: 0.6, Top-p: 0.95
+Max tokens: 2000
+Enable thinking: True
+Few-shot: True
+Token to match: </think>
+Intercept count: 0
+Samples per question: 10
+
+============================================================
+RUNNING EXPERIMENT
+============================================================
+Questions:   0%|          | 0/10 [00:00<?, ?it/s][Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+Questions:  10%|█         | 1/10 [00:54<08:10, 54.54s/it][Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+Questions:  20%|██        | 2/10 [02:53<12:17, 92.17s/it][Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+Questions:  30%|███       | 3/10 [03:59<09:23, 80.47s/it][Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+Questions:  40%|████      | 4/10 [06:14<10:12, 102.06s/it][Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+Questions:  50%|█████     | 5/10 [07:29<07:40, 92.12s/it] [Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+Questions:  60%|██████    | 6/10 [08:48<05:50, 87.73s/it][Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+Questions:  70%|███████   | 7/10 [10:00<04:08, 82.70s/it][Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+Questions:  80%|████████  | 8/10 [13:32<04:07, 123.69s/it][Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+Questions:  90%|█████████ | 9/10 [14:46<01:48, 108.13s/it][Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+[Config] Token to match: </think> (ID: 151668)
+[Config] Override text: <dynamic per intercept>
+[Config] Intercept count: 0
+[Config] Enable thinking: True
+
+Questions: 100%|██████████| 10/10 [16:19<00:00, 103.62s/it]Questions: 100%|██████████| 10/10 [16:19<00:00, 97.97s/it] 
+
+------------------------------------------------------------
+SAVING RESULTS
+------------------------------------------------------------
+
+✓ Results saved to: /workspace/experiments/exp_006_extend_thinking/bbq/batch/outputs/qwen_32B_baseline_religion_20260101_232043/results_20260101_234306.json
+
+============================================================
+EXPERIMENT COMPLETE
+============================================================
+
+Questions: 10
+Total samples: 100
+Overall accuracy: 89/100 (89.0%)
+Total time: 979.7s (16.3 min)
+Avg time per sample: 9.80s
+
+Results saved to: /workspace/experiments/exp_006_extend_thinking/bbq/batch/outputs/qwen_32B_baseline_religion_20260101_232043/results_20260101_234306.json

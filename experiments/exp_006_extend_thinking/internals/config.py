@@ -13,8 +13,8 @@ MODEL_NAME = "Qwen/Qwen3-8B"
 # BBQ QUESTION SELECTION
 # =============================================================================
 # Categories: age, disability, gender, nationality, appearance, race, religion, ses, sexual_orientation
-BBQ_CATEGORY = "age"
-BBQ_INDEX = 0  # Which question from the category
+BBQ_CATEGORY = "appearance"
+BBQ_INDEX = 1  # Which question from the category
 
 # =============================================================================
 # FORCED COT INJECTION

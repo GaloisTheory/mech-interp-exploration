@@ -114,6 +114,62 @@ def find_think_start_idx(token_strs):
     return None
 
 
+def find_decision_point(cache, model, tokens, n_positions=15):
+    """Find where ABC probability mass is highest in the last N positions.
+    
+    Helps identify the TRUE decision point where the model commits to A/B/C.
+    """
+    # Get both variants: with and without space prefix
+    A_sp, B_sp, C_sp = get_answer_token_ids(model)  # " A", " B", " C"
+    A_id = model.to_single_token("A")
+    B_id = model.to_single_token("B") 
+    C_id = model.to_single_token("C")
+    all_answer_ids = [A_id, B_id, C_id, A_sp, B_sp, C_sp]
+    
+    final_layer = model.cfg.n_layers - 1
+    resid = cache["resid_post", final_layer][0]  # [seq_len, d_model]
+    
+    # Apply ln_final and unembed
+    resid = model.ln_final(resid)
+    logits = resid @ model.W_U
+    if model.b_U is not None:
+        logits = logits + model.b_U
+    
+    # Get token strings
+    token_strs = model.to_str_tokens(tokens[0])
+    seq_len = len(token_strs)
+    start_pos = max(0, seq_len - n_positions)
+    
+    print(f"\n=== Decision Point Analysis (last {n_positions} positions) ===")
+    print(f"{'Pos':<5} {'Token':<15} {'ABC Mass':<10} {'P(A)':<8} {'P(B)':<8} {'P(C)':<8} {'Top Token (logit)':<25}")
+    print("-" * 90)
+    
+    for pos in range(start_pos, seq_len):
+        pos_logits = logits[pos]
+        probs = torch.softmax(pos_logits.float(), dim=-1)
+        
+        # ABC probabilities (max of with/without space variants)
+        p_a = max(probs[A_id].item(), probs[A_sp].item())
+        p_b = max(probs[B_id].item(), probs[B_sp].item())
+        p_c = max(probs[C_id].item(), probs[C_sp].item())
+        abc_mass = sum(probs[tid].item() for tid in all_answer_ids)
+        
+        # Top predicted token
+        top_idx = pos_logits.argmax().item()
+        top_logit = pos_logits[top_idx].item()
+        top_token = model.to_single_str_token(top_idx)
+        top_token_escaped = repr(top_token)[1:-1]  # escape special chars
+        
+        # Escape token string
+        tok_str = token_strs[pos]
+        tok_escaped = repr(tok_str)[1:-1][:13]  # truncate for display
+        
+        marker = "<<<" if abc_mass > 0.3 else ""
+        print(f"{pos:<5} {tok_escaped:<15} {abc_mass:<10.4f} {p_a:<8.4f} {p_b:<8.4f} {p_c:<8.4f} {top_token_escaped} ({top_logit:.1f}) {marker}")
+    
+    print("-" * 90)
+
+
 def run_logit_lens(model, tokens):
     """Run model and extract logit lens data for all layers.
     
@@ -370,6 +426,9 @@ def run(cfg):
     print(f"\nToken context (last 10 tokens):")
     for i in range(max(0, len(token_strs)-10), len(token_strs)):
         print(f"  [{i}] {repr(token_strs[i])}")
+    
+    # Find decision point
+    find_decision_point(cache, model, tokens)
     
     # Generation verification
     print(f"\n=== Generation Verification ===")

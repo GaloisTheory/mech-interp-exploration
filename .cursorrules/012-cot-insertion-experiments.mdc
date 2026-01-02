@@ -1,0 +1,184 @@
+# CoT Insertion Experiment v2 - Bug Fix and Re-run
+
+## Critical Bug Found (2026-01-02)
+
+A critical bug was discovered in `generate_with_custom_override` that invalidated all previous experiment results.
+
+### The Bug
+
+In `experiments/exp_006_extend_thinking/shared/generation.py`, after processing override tokens, the code set `input_ids` to the last override token:
+
+```python
+# BUGGY CODE (lines 876-884)
+with torch.no_grad():
+    override_outputs = hf_model(
+        input_ids=override_ids,  # Processes ALL tokens including </think>
+        past_key_values=past_key_values,
+        use_cache=True,
+    )
+past_key_values = override_outputs.past_key_values
+input_ids = override_ids[:, -1:]  # BUG: Last token (</think>)
+continue  # Loop continues, processes </think> AGAIN
+```
+
+When the loop continued, it ran `model(input_ids, past_key_values)` which processed `</think>` a **second time**, corrupting the KV cache attention patterns.
+
+### Impact
+
+- Model predictions were **inverted**: P(correct)=0.99 became P(incorrect)=0.99
+- All non-baseline experiments are affected (any using override injection)
+- Baseline experiments are NOT affected (no override injection)
+
+### The Fix
+
+Use logits from `override_outputs` directly instead of re-processing the last token:
+
+```python
+# FIXED CODE
+past_key_values = override_outputs.past_key_values
+
+# Sample next token from override output logits (not re-process last token)
+next_logits = override_outputs.logits[0, -1, :]
+next_token_id = sample_token(next_logits, temperature, top_p)
+
+if next_token_id == tokenizer.eos_token_id:
+    break
+
+generated_ids.append(next_token_id)
+input_ids = torch.tensor([[next_token_id]], device=device)
+continue
+```
+
+Same fix applied to position override (lines 919-927).
+
+---
+
+## Experiments to Re-run
+
+### All Non-Baseline Experiments
+
+The following experiment types need to be re-run for all models:
+
+| Type | Configs | Count |
+|------|---------|-------|
+| Force Immediate | `force_immediate_answer.yaml` | 1 |
+| Blank Static | `blank_static_{0,5,50,100,500}.yaml` | 5 |
+| Blank Dynamic | `blank_dynamic_{median,max}_{1,2,5}x.yaml` | 6 |
+| Incorrect Static | `incorrect_answer_{1,2,6,12,62}.yaml` | 5 |
+| Incorrect Dynamic | `incorrect_dynamic_{median,max}_{1,2,5}x.yaml` | 6 |
+| **Total per model** | | **23** |
+
+### Models
+
+| Model | Baseline Status | Re-run Status |
+|-------|-----------------|---------------|
+| Qwen/Qwen3-8B | Valid (keep) | Pending |
+| Qwen/Qwen3-1.7B | Valid (keep) | Pending |
+| Qwen/Qwen3-32B | Valid (keep) | Pending |
+
+---
+
+## Speed Run Plan
+
+### Multi-GPU Orchestration
+
+With multiple GPUs, run experiments in parallel per GPU:
+
+```bash
+# GPU 0: Qwen-8B experiments
+CUDA_VISIBLE_DEVICES=0 ./run_all_qwen_8B.sh &
+
+# GPU 1: Qwen-1.7B experiments  
+CUDA_VISIBLE_DEVICES=1 ./run_all_qwen_1.7B.sh &
+
+# GPU 2: Qwen-32B experiments
+CUDA_VISIBLE_DEVICES=2 ./run_all_qwen_32B.sh &
+
+wait
+```
+
+### Phase 1: Non-Dynamic (can run immediately)
+
+Per model, run in parallel:
+- 11 baseline configs (valid, skip if already have results)
+- 1 force_immediate config
+- 5 blank_static configs
+- 5 incorrect_answer configs
+
+### Phase 2: Dynamic (requires baseline token stats)
+
+After Phase 1 completes:
+- 6 blank_dynamic configs
+- 6 incorrect_dynamic configs
+
+### Time Estimates
+
+| Model | Per-Sample (baseline) | Per-Sample (injection) | Total (23 experiments) |
+|-------|----------------------|------------------------|------------------------|
+| Qwen-8B | ~25s | ~0.6s | ~3-4 hours |
+| Qwen-1.7B | ~15s | ~0.4s | ~2 hours |
+| Qwen-32B | ~60s | ~1.5s | ~6-8 hours |
+
+With 3 GPUs running in parallel: **~6-8 hours total**
+
+---
+
+## Running the Re-run
+
+### Step 1: Verify fix is applied
+
+```bash
+# Check the fix is in place
+grep -A 5 "Sample next token from override" \
+    experiments/exp_006_extend_thinking/shared/generation.py
+```
+
+### Step 2: Archive old results (optional)
+
+```bash
+cd experiments/exp_006_extend_thinking/bbq/batch/outputs
+mkdir -p archive_buggy_2026_01_02
+mv *_blank_* *_incorrect_* *_force_immediate_* archive_buggy_2026_01_02/
+# Keep baseline folders - they are valid
+```
+
+### Step 3: Run experiments
+
+```bash
+cd experiments/exp_006_extend_thinking/bbq/batch
+
+# For each model, run the orchestration script
+./run_all_qwen_8B.sh
+./run_all_qwen_1.7B.sh
+./run_all_qwen_32B.sh
+```
+
+### Step 4: Analyze results
+
+```bash
+# Run analysis scripts
+python analyze_qwen_8B.py
+python analyze_qwen_1.7B.py
+python analyze_qwen_32B.py
+```
+
+---
+
+## Validation
+
+After re-running, verify the fix worked:
+
+1. **Force Immediate** accuracy should be ~90% (model can answer without CoT)
+2. **Blank Static** accuracy should be ~90% (neutral content doesn't hurt)
+3. **Incorrect Answer** should show accuracy degradation (misleading content hurts)
+
+If Force Immediate or Blank Static show very low accuracy (~0-10%), the bug may still be present.
+
+---
+
+## Files Modified
+
+| File | Change |
+|------|--------|
+| `shared/generation.py` | Fixed KV cache bug in lines 876-884 and 919-927 |
+| `.cursorrules/012-cot-insertion-experiments.mdc` | This document |

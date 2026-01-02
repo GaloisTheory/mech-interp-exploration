@@ -1,0 +1,32 @@
+# Test config to verify KV cache bug fix
+# Runs just 1 question from appearance with 5 samples
+name: "test_fix_verification"
+
+model:
+  name: "Qwen/Qwen3-8B"
+
+questions:
+  source: "bbq"
+  categories:
+    - appearance  # The category where we found the bug
+  n_per_category: 2  # Just 2 questions
+  seed: 42
+
+generation:
+  temperature: 0.6
+  top_p: 0.95
+  max_tokens: 100
+  enable_thinking: true
+  use_few_shot: true
+
+override:
+  token_to_match: "<think>"
+  intercept_count: 1
+  blank_spaces: 0  # Inject <think></think> (force immediate answer)
+
+samples: 5  # 5 samples per question
+
+# Expected with bug fixed: ~80-100% accuracy
+# Expected with bug present: ~0-20% accuracy
+
+

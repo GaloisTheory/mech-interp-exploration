@@ -1,0 +1,40 @@
+# Blank Space Injection: n=0 (NoCoT with balanced tags) - Qwen3-1.7B
+# Intercepts <think> and injects <think></think> (no thinking content)
+name: "qwen_1.7B_blank_static_0"
+
+model:
+  name: "Qwen/Qwen3-1.7B"
+
+questions:
+  source: "bbq"
+  categories:
+    - age
+    - disability
+    - gender
+    - nationality
+    - appearance
+    - race
+    - race_ses
+    - race_gender
+    - religion
+    - ses
+    - sexual_orientation
+  n_per_category: 10
+  seed: 42
+
+generation:
+  temperature: 0.6
+  top_p: 0.95
+  max_tokens: 100
+  enable_thinking: true
+  use_few_shot: true
+
+override:
+  token_to_match: "<think>"
+  intercept_count: 1
+  blank_spaces: 0  # Inject <think></think> (balanced, no content)
+
+samples: 10
+
+
+

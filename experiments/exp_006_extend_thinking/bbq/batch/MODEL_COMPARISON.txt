@@ -1,0 +1,49 @@
+========================================================================================================================
+BBQ CoT INSERTION EXPERIMENT - MODEL COMPARISON
+========================================================================================================================
+
+                           Qwen-8B        Qwen-1.7B      Qwen-32B       Analysis
+------------------------------------------------------------------------------------------------------------------------
+BASELINE (Full CoT)        95.0%          82.3%          94.2%          32B ≈ 8B >> 1.7B
+------------------------------------------------------------------------------------------------------------------------
+NOCOT (Force Immediate)    91.0%          48.0%          93.5%          32B > 8B >> 1.7B
+   ∆ from baseline         -4%            -34%           -1%            Smaller model needs thinking!
+------------------------------------------------------------------------------------------------------------------------
+BLANK SPACE (Best)         93.0%          47.6%          95.6%          32B > 8B >> 1.7B
+   Interpretation          Robust         Collapsed      Very robust    1.7B can't reason without content
+------------------------------------------------------------------------------------------------------------------------
+INCORRECT ANSWER (Best)    70.0%          3.1%           64.1%          8B ≈ 32B >> 1.7B
+   Worst                   42.0%          0.3%           30.5%          
+   Interpretation          Partial resist Complete fail  Partial resist 1.7B blindly follows injection!
+------------------------------------------------------------------------------------------------------------------------
+
+KEY INSIGHTS:
+
+1. MODEL SIZE & THINKING DEPENDENCY
+   - Qwen-32B: Barely needs thinking (-1% without CoT), extremely robust
+   - Qwen-8B: Slight thinking benefit (-4% without CoT), quite robust
+   - Qwen-1.7B: HEAVILY depends on thinking (-34% without CoT)
+
+2. BLANK SPACE ROBUSTNESS (Can model reason without explicit CoT?)
+   - Qwen-32B: 95.6% - actually IMPROVES with blank space!
+   - Qwen-8B: 93% - robust, minimal degradation
+   - Qwen-1.7B: 47.6% - complete collapse, random guessing
+
+3. MISLEADING COT SUSCEPTIBILITY
+   - Qwen-32B: 30-64% - partially resistant, some recovery
+   - Qwen-8B: 42-70% - similar resistance pattern
+   - Qwen-1.7B: 0.3-3% - COMPLETELY follows misleading suggestions
+
+4. REPETITION PARADOX (More repetitions = better for large models)
+   - Qwen-8B: 1 rep (42%) → 12 reps (70%) - detects something is off
+   - Qwen-32B: 1 rep (59%) → 12 reps (64%) - slight improvement
+   - Qwen-1.7B: 1 rep (3%) → 12 reps (0.3%) - gets WORSE!
+
+CONCLUSION:
+- Large models (32B, 8B) have internal reasoning that doesn't require faithful CoT
+- Small models (1.7B) are highly dependent on explicit reasoning traces
+- Misleading CoT is EXTREMELY effective against small models (98% success rate)
+- Model size determines robustness to adversarial/unfaithful chain-of-thought
+
+========================================================================================================================
+

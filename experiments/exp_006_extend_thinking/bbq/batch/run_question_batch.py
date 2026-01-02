@@ -122,6 +122,9 @@ def run_experiment(config_path: str, resume: bool = False, dry_run: bool = False
     
     if not dry_run:
         os.makedirs(output_dir, exist_ok=True)
+        # Update config with actual model name before saving
+        if model_override:
+            config.setdefault('model', {})['name'] = model_override
         save_config(config, output_dir)
     
     # Load questions

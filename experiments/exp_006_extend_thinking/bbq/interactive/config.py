@@ -19,8 +19,8 @@ USE_BBQ = True   # True = use BBQ question below, False = use CUSTOM_PROMPT belo
 # -----------------------------------------------------------------------------
 # BBQ Mode Settings (when USE_BBQ = True)
 # -----------------------------------------------------------------------------
-BBQ_CATEGORY = "age"  # Options: age, disability, gender, nationality, appearance, race, religion, ses, sexual_orientation
-BBQ_INDEX = 3          # Which question from the category
+BBQ_CATEGORY = "appearance"  # Options: age, disability, gender, nationality, appearance, race, religion, ses, sexual_orientation
+BBQ_INDEX = 1          # Which question from the category
 
 # -----------------------------------------------------------------------------
 # Custom Prompt Mode (when USE_BBQ = False)
@@ -66,7 +66,7 @@ TOKEN_TO_MATCH = "<think>"
 # Override text schedule: maps intercept ranges to different injection texts
 # Format: list of (start, end, text) tuples - intercepts from start to end (inclusive) use that text
 OVERRIDE_SCHEDULE = [
-    (1, 1, "<think>" + "The answer must be B then! "*100 + "</think>"),
+    (1, 1, "<think>" + " "*100 + "</think>"),
     #(1, 1, "</think>"),
 ]
 
@@ -103,7 +103,6 @@ SHOW_THINKING = True  # Show chain-of-thought (content inside <think> tags)
 
 # Number of times to sample (run generation multiple times to see variance)
 NUM_SAMPLES = 10
-
 # Set to True to also run a comparison generation without overrides
 RUN_COMPARISON = False
 
